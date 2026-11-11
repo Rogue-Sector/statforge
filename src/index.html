@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Statblock Builder</title>
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="icons/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <button id="menu-btn" class="icon-btn menu-btn" type="button" aria-label="Show monsters" aria-controls="library" aria-expanded="false"></button>
+      <div class="wordmark"><img class="wordmark-mark" src="icons/mark.svg" alt="" width="21" height="24">Statblock Builder</div>
+      <div class="topbar-right">
+        <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
+        <button id="export-all" class="btn btn-outline topbar-file" type="button">Export</button>
+        <button id="import" class="btn btn-outline topbar-file" type="button">Import</button>
+        <a class="credit" href="https://roguesector.dev" target="_blank" rel="noopener">by RogueSector</a>
+      </div>
+    </header>
+
+    <aside class="library" id="library" aria-label="Monster library">
+      <button id="new-monster" class="btn btn-primary btn-block" type="button" title="New monster (Ctrl+N)">+ New monster</button>
+      <label class="find">
+        <span class="find-icon" id="find-icon" aria-hidden="true"></span>
+        <input id="search" type="search" placeholder="Find a monster" aria-label="Find a monster" autocomplete="off">
+        <kbd class="kbd">Ctrl K</kbd>
+      </label>
+      <nav id="monster-list" class="folders" aria-label="Monsters"></nav>
+      <div id="new-folder" class="new-folder"></div>
+      <div class="drawer-files">
+        <button id="export-all-2" class="btn btn-outline" type="button">Export</button>
+        <button id="import-2" class="btn btn-outline" type="button">Import</button>
+      </div>
+      <p id="library-note" class="library-note">Every change saves in this browser as you type. Export a file to back up or share.</p>
+    </aside>
+    <div id="scrim" class="scrim" hidden></div>
+
+    <main class="main" id="main">
+      <div id="monster-head"></div>
+      <div id="tabs" class="tabs" role="tablist" aria-label="Statblock sections"></div>
+      <div class="workspace">
+        <section id="editor" class="editor" role="tabpanel" aria-labelledby="tab-actions"></section>
+        <section id="output" class="output" aria-label="Preview of this box"></section>
+      </div>
+      <footer class="disclaimer">Not affiliated with Wizards of the Coast or D&amp;D Beyond</footer>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="roll-tip" class="roll-tip" role="tooltip" hidden></div>
+  <div id="finder" class="finder" hidden></div>
+
+  <datalist id="durations">
+    <option value="until the start of the creature’s next turn">
+    <option value="until the end of its next turn">
+    <option value="until the end of the creature’s next turn">
+    <option value="for 1 minute">
+    <option value="for 1 hour">
+    <option value="(escape DC 14)">
+  </datalist>
+  <datalist id="areas">
+    <option value="each creature in a 15-foot Cone">
+    <option value="each creature in a 30-foot Cone">
+    <option value="each creature in a 60-foot Cone">
+    <option value="each creature in a 60-foot-long, 5-foot-wide Line">
+    <option value="each creature in a 20-foot-radius Sphere">
+    <option value="each creature in a 10-foot Emanation originating from the creature">
+    <option value="one creature the creature can see within 60 feet">
+  </datalist>
+  <datalist id="spell-labels">
+    <option value="At Will">
+    <option value="1/Day Each">
+    <option value="2/Day Each">
+    <option value="3/Day Each">
+    <option value="Cantrips (at will)">
+    <option value="1st level (4 slots)">
+    <option value="2nd level (3 slots)">
+    <option value="3rd level (3 slots)">
+  </datalist>
+  <datalist id="components">
+    <option value="requiring no Material components">
+    <option value="requiring no components">
+    <option value="requiring no Somatic or Material components">
+  </datalist>
+  <datalist id="creature-types">
+    <option value="Aberration"><option value="Beast"><option value="Celestial"><option value="Construct">
+    <option value="Dragon"><option value="Elemental"><option value="Fey"><option value="Fiend">
+    <option value="Giant"><option value="Humanoid"><option value="Monstrosity"><option value="Ooze">
+    <option value="Plant"><option value="Swarm"><option value="Undead">
+  </datalist>
+  <datalist id="crs">
+    <option value="0"><option value="1/8"><option value="1/4"><option value="1/2">
+    <option value="1"><option value="2"><option value="3"><option value="4"><option value="5">
+    <option value="6"><option value="7"><option value="8"><option value="9"><option value="10">
+    <option value="11"><option value="12"><option value="13"><option value="14"><option value="15">
+    <option value="16"><option value="17"><option value="18"><option value="19"><option value="20">
+    <option value="21"><option value="22"><option value="23"><option value="24"><option value="25">
+    <option value="26"><option value="27"><option value="28"><option value="29"><option value="30">
+  </datalist>
+  <datalist id="folder-names"></datalist>
+
+  <script src="format.js"></script>
+  <script src="library.js"></script>
+  <script src="example.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

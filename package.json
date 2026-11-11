@@ -1,0 +1,38 @@
+{
+  "name": "statblock-builder",
+  "productName": "Statblock Builder",
+  "version": "1.0.0",
+  "description": "Build D&D Beyond / AboveVTT rollable monster actions and copy them straight into your statblock.",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\"",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.statblockbuilder.app",
+    "productName": "Statblock Builder",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "StatblockBuilder.exe"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

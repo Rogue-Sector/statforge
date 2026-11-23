@@ -457,10 +457,26 @@
 
   // ---- public formatters -----------------------------------------------
 
+  /** A lair action with no name is a bare paragraph, as in the Monster Manual's lair action lists. */
+  const isUnnamedLair = (a) => sectionOf(a) === 'lair' && !clean(a.name);
+
   /** ctx: { subject: "The dragon", wording: '2024' | '2014' }. */
   function formatAction(a, ctx = {}) {
-    const name = clean(a.name) || 'Unnamed Action';
-    const tokens = headerTokens(a, name);
+    const tokens = actionTokens(a, ctx);
+    if (!isUnnamedLair(a)) return tokens;
+    // No name, so no "Name." header and no space before the text.
+    const first = tokens[0];
+    if (first && first.t === 'text') {
+      const v = first.v.replace(/^ /, '');
+      return v ? [text(v), ...tokens.slice(1)] : tokens.slice(1);
+    }
+    return tokens;
+  }
+
+  function actionTokens(a, ctx) {
+    const unnamed = isUnnamedLair(a);
+    const name = unnamed ? 'Lair Action' : clean(a.name) || 'Unnamed Action';
+    const tokens = unnamed ? [] : headerTokens(a, name);
     const wording = ctx.wording === '2014' ? '2014' : '2024';
     const subject = ctx.subject || 'The creature';
 
@@ -543,17 +559,21 @@
     { key: 'bonus', title: 'Bonus Actions', box: 'Bonus Actions' },
     { key: 'reactions', title: 'Reactions', box: 'Reactions' },
     { key: 'legendary', title: 'Legendary Actions', box: 'Legendary Actions' },
+    { key: 'lair', title: 'Lair Actions', box: 'Lair and Lair Actions' },
   ];
   const sectionOf = (a) => (SECTIONS.some((s) => s.key === a.section) ? a.section : 'actions');
 
-  /** Attacks don't belong in Traits; every other kind is allowed everywhere. */
-  const kindAllowed = (kind, section) => !(section === 'traits' && kind in KINDS);
+  /** Lair actions are Text or Saving Throw entries. Attacks don't belong in Traits. */
+  const LAIR_KINDS = ['text', 'save'];
+  const kindAllowed = (kind, section) => (section === 'lair' ? LAIR_KINDS.includes(kind) : !(section === 'traits' && kind in KINDS));
 
   /** Problems to show on an action's card in the editor. Never throws. */
   function actionWarnings(a) {
     const out = [];
     if (!kindAllowed(a.kind, sectionOf(a))) {
-      out.push('Attacks don’t belong in Traits. Change this to Text, Saving Throw or Spellcasting, or move it to another section.');
+      out.push(sectionOf(a) === 'lair'
+        ? 'Lair actions are Text or Saving Throw entries. Change this to one of those, or move it to another section.'
+        : 'Attacks don’t belong in Traits. Change this to Text, Saving Throw or Spellcasting, or move it to another section.');
     }
     const fields = [];
     if (a.kind === 'text') fields.push(['Trigger', a.trigger], [clean(a.trigger) ? 'Response' : 'Description', a.description]);
@@ -564,6 +584,12 @@
       for (const e of parseInline(clean(value), '').errors) out.push(`${label}: ${e}`);
     }
     return out;
+  }
+
+  /** Inline-dice problems in a custom lair actions intro. */
+  function lairWarnings(monster) {
+    const l = monster.lair || {};
+    return parseInline(clean(l.text), '').errors.map((e) => `Custom intro: ${e}`);
   }
 
   /** Inline-dice problems in the multiattack's extra text. */
@@ -623,6 +649,20 @@
     ];
   }
 
+  /**
+   * The paragraph that opens the Lair Actions section, in 2014 wording (the 2024 rules have no
+   * lair actions). lair: { initiative: 20, noRepeat: true, text: '' }; text replaces the whole paragraph.
+   */
+  function formatLairIntro(monster) {
+    const l = monster.lair || {};
+    const custom = clean(l.text);
+    if (custom) return inline(custom, 'Lair Actions');
+    const it = midSentence(subjectOf(monster));
+    const count = Math.min(Math.max(int(l.initiative, 20), 1), 30);
+    const repeat = l.noRepeat !== false ? `; ${it} can’t use the same effect two rounds in a row` : '';
+    return [text(`When fighting inside its lair, ${it} can take lair actions. On initiative count ${count} (losing initiative ties), ${it} takes a lair action to cause one of the following effects${repeat}:`)];
+  }
+
   /** The monster's non-empty sections in statblock order: [{ key, title, blocks: [{ id, section, tokens }] }]. */
   function formatSections(monster) {
     return SECTIONS.map((s) => {
@@ -634,6 +674,9 @@
       }
       if (s.key === 'legendary' && actions.length) {
         blocks.push({ id: 'legendary-intro', section: s.key, tokens: formatLegendaryIntro(monster) });
+      }
+      if (s.key === 'lair' && actions.length) {
+        blocks.push({ id: 'lair-intro', section: s.key, tokens: formatLairIntro(monster) });
       }
       const ctx = { subject: subjectOf(monster), wording: wordingOf(monster) };
       for (const a of actions) blocks.push({ id: a.id, section: s.key, tokens: formatAction(a, ctx) });
@@ -745,9 +788,9 @@
   return {
     DAMAGE_TYPES, ABILITIES, CONDITIONS, SECTIONS, WORDINGS,
     VERSATILE_WORDING,
-    avgDamage, diceText, diceNotation, isAttack, sectionOf, kindAllowed, actionWarnings, multiattackWarnings, parseInline,
+    avgDamage, diceText, diceNotation, isAttack, sectionOf, kindAllowed, actionWarnings, multiattackWarnings, lairWarnings, parseInline,
     wordingOf,
-    formatAction, formatMultiattack, formatLegendaryIntro, formatSections, formatMonster,
+    formatAction, formatMultiattack, formatLegendaryIntro, formatLairIntro, formatSections, formatMonster,
     rollReadout,
     toPlain, toHtml, escapeHtml, blocksToClipboard, sectionsToClipboard,
   };

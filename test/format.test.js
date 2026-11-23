@@ -522,3 +522,78 @@ test('monster wording: the setting drives every section, and old legendary.style
   assert.equal(F.wordingOf({ wording: '2024', legendary: { style: '2014' } }), '2024');
   assert.equal(F.wordingOf({ wording: 'nonsense', legendary: { style: '2014' } }), '2014');
 });
+
+// ---- lair actions ----
+
+function lairDragon() {
+  const m = dragon();
+  m.lair = { initiative: 20, noRepeat: true, text: '' };
+  m.actions.push(
+    action({ id: 'lr-1', name: '', kind: 'text', section: 'lair', description: 'Magma erupts from a point on the ground, dealing {dmg 6d6 Fire} fire damage to anything there' }),
+    action({ id: 'lr-2', name: '', kind: 'save', section: 'lair', usage: { type: 'none' }, save: { ability: 'Constitution', dc: 15 }, area: 'each creature within 20 feet of a point the dragon can see', damage: { count: 3, die: 6, mod: 0, type: 'Fire' }, success: 'half' }),
+  );
+  return m;
+}
+
+const LAIR_INTRO = 'When fighting inside its lair, the dragon can take lair actions. On initiative count 20 (losing initiative ties), the dragon takes a lair action to cause one of the following effects; the dragon can’t use the same effect two rounds in a row:';
+
+test('lair actions: a sixth section after Legendary, with the intro first', () => {
+  const sections = F.formatSections(lairDragon());
+  const lair = sections[sections.length - 1];
+  assert.deepEqual([lair.key, lair.title, lair.box], ['lair', 'Lair Actions', 'Lair and Lair Actions']);
+  assert.deepEqual(lair.blocks.map((b) => b.id), ['lair-intro', 'lr-1', 'lr-2']);
+  assert.equal(plain(lair.blocks[0].tokens), LAIR_INTRO);
+  // No lair actions, no section and no intro.
+  assert.ok(!F.formatSections(dragon()).some((s) => s.key === 'lair'));
+});
+
+test('lair intro: subject, initiative count, repeat rule and custom text', () => {
+  const m = lairDragon();
+  m.subject = '';
+  m.name = 'Tiamat';
+  m.lair = { initiative: 15, noRepeat: false };
+  assert.equal(plain(F.formatLairIntro(m)), 'When fighting inside its lair, the Tiamat can take lair actions. On initiative count 15 (losing initiative ties), the Tiamat takes a lair action to cause one of the following effects:');
+  m.subject = 'Tiamat';
+  assert.match(plain(F.formatLairIntro(m)), /^When fighting inside its lair, Tiamat can take lair actions\./);
+  assert.match(plain(F.formatLairIntro({ ...m, lair: {} })), /initiative count 20 .* Tiamat can’t use the same effect two rounds in a row:$/);
+  m.lair.text = 'On initiative count 20, the lair shakes for {1d4} rounds.';
+  assert.equal(plain(F.formatLairIntro(m)), 'On initiative count 20, the lair shakes for [rollable]1d4;{"diceNotation":"1d4", "rollType":"roll", "rollAction":"Lair Actions"}[/rollable] rounds.');
+  m.lair.text = 'Bad {lots}';
+  assert.equal(F.lairWarnings(m).length, 1);
+  assert.match(F.lairWarnings(m)[0], /^Custom intro: Can’t read \{lots\}/);
+});
+
+test('lair entries: unnamed text and saves are bare paragraphs with inline dice', () => {
+  const blocks = F.formatMonster(lairDragon());
+  const byId = (id) => plain(blocks.find((b) => b.id === id).tokens);
+  assert.equal(byId('lr-1'), 'Magma erupts from a point on the ground, dealing 21 [rollable](6d6);{"diceNotation":"6d6", "rollType":"damage", "rollAction":"Lair Action", "rollDamageType":"Fire"}[/rollable] fire damage to anything there');
+  assert.equal(
+    readable(blocks.find((b) => b.id === 'lr-2').tokens),
+    'Constitution Saving Throw: DC 15, each creature within 20 feet of a point the dragon can see. Failure: 10 «(3d6)» Fire damage. Success: Half damage.',
+  );
+  const m = lairDragon();
+  m.wording = '2014';
+  assert.equal(
+    readable(F.formatMonster(m).find((b) => b.id === 'lr-2').tokens),
+    'Each creature within 20 feet of a point the dragon can see must make a DC 15 Constitution saving throw, taking 10 «(3d6)» fire damage on a failed save, or half as much damage on a successful one.',
+  );
+  // A named lair action keeps its name, and unnamed ones elsewhere are still "Unnamed Action".
+  assert.match(plain(F.formatAction(action({ name: 'Tremor', kind: 'text', section: 'lair', description: 'The ground shakes.' }))), /^Tremor\. The ground shakes\.$/);
+  assert.match(plain(F.formatAction(action({ name: '', kind: 'text', section: 'actions', description: 'x' }))), /^Unnamed Action\. x$/);
+});
+
+test('lair actions only take Text and Saving Throw kinds', () => {
+  assert.equal(F.kindAllowed('text', 'lair'), true);
+  assert.equal(F.kindAllowed('save', 'lair'), true);
+  assert.equal(F.kindAllowed('melee', 'lair'), false);
+  assert.equal(F.kindAllowed('spells', 'lair'), false);
+  assert.match(F.actionWarnings(action({ section: 'lair' }))[0], /^Lair actions are Text or Saving Throw entries/);
+  assert.deepEqual(F.actionWarnings(action({ section: 'lair', kind: 'text', description: '{1d4}' })), []);
+});
+
+test('copy all includes Lair Actions with its heading, and HTML renders unnamed entries', () => {
+  const all = F.sectionsToClipboard(F.formatSections(lairDragon()));
+  assert.ok(all.text.includes(`\n\nLair Actions\n\n${LAIR_INTRO}\n\nMagma erupts`));
+  assert.ok(all.html.includes('<h3>Lair Actions</h3><p>When fighting inside its lair'));
+  assert.ok(all.html.includes('<p>Magma erupts from a point'));
+});

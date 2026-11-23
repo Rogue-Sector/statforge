@@ -19,7 +19,7 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
      - **2014 rules**: "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage." Saving throws read "Each creature in a 30-foot cone must make a DC 15 Dexterity saving throw, taking 22 (5d8) fire damage on a failed save, or half as much damage on a successful one." Damage types and "hit points" are lowercase. Conditions keep their capital letter, because they're D&D Beyond tooltips.
    - The sidebar groups monsters by folder. Make one with **+ New folder**, then drag monsters onto it or pick it under a monster's name. Deleting a folder moves its monsters to Unsorted.
    - **Find a monster** filters the sidebar as you type.
-2. **Pick a section tab**: Traits, Actions, Bonus Actions, Reactions or Legendary. There's one tab for each box in D&D Beyond's homebrew monster form. Click an action to open it, and use **+ Add action** to add one to the current tab. You can move an action to another section later with its **Section** dropdown.
+2. **Pick a section tab**: Traits, Actions, Bonus Actions, Reactions, Legendary or Lair. There's one tab for each box in D&D Beyond's homebrew monster form. Click an action to open it, and use **+ Add action** to add one to the current tab. You can move an action to another section later with its **Section** dropdown.
    - **Traits** are passive features such as Regeneration, Pack Tactics, Legendary Resistance and auras. They take the Text, Saving Throw and Spellcasting kinds; attacks are hidden there, and an attack moved into Traits shows a warning. Use **Usage → Custom** for tags like "3/Day, or 4/Day in Lair". In D&D Beyond they go in the **Special Traits** box.
    - **Melee, Ranged, or Melee or Ranged attack.** Set the to-hit bonus, reach or range, and damage (dice, die, modifier, type). Then add any of:
      - **Versatile** (tick it under Damage, melee attacks only): a second damage for two-handed use. "7 (1d8 + 3) Slashing damage, or 8 (1d10 + 3) Slashing damage if used with two hands". It starts as a copy of the main damage one die size bigger, and the type and wording can be changed.
@@ -40,14 +40,17 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
    - **Usage** adds a clickable *(Recharge 5-6)* that rolls a d6, *(3/Day)*, *(Costs 2 Actions)* for legendary actions, or your own tag after the name.
 3. **Multiattack.** Tick it, then set how many times each attack is used. Only attacks in the Actions section can be picked.
 4. **Legendary Actions.** Once the section has an action, set the number of uses and the uses in its lair (0 if it has no lair). The intro paragraph uses the monster's **Wording**. Monsters saved before the Wording setting existed keep the wording their legendary intro had.
-5. **Copy.** D&D Beyond has a separate box for each section, so copy one section at a time. The preview on the right shows the current tab's box:
+5. **Lair Actions.** The Lair tab matches D&D Beyond's **Lair and Lair Actions** box. Each lair action is a **Text** or **Saving Throw** entry, with dice in its text (the description, or a saving throw's rider and Success text). Leave the name empty to paste the entry as a plain paragraph, the way lair actions are usually written. Once the tab has an entry, the **Lair Actions intro** card sets the opening paragraph: "When fighting inside its lair, the dragon can take lair actions. On initiative count 20 (losing initiative ties), the dragon takes a lair action to cause one of the following effects; the dragon can’t use the same effect two rounds in a row:"
+   - The intro always uses 2014 wording, because the 2024 rules have no lair actions. It names the monster with **Creature is called**.
+   - Change the **Initiative count**, untick **Can’t use the same effect two rounds in a row**, or type a **Custom intro** to replace the whole paragraph.
+6. **Copy.** D&D Beyond has a separate box for each section, so copy one section at a time. The preview on the right shows the current tab's box:
    - **Copy Actions** (or Copy Special Traits, …) copies that whole box.
    - Clicking an action in the preview, or its copy icon, copies just that action.
    - **Copy all sections** copies everything, with each section's title on its own line between them.
    - **Paste text** shows the exact text that will be pasted.
    - **\*\*Bold\*\* names** wraps each action name in `**…**` for places that use Markdown.
-6. **Check what still needs pasting.** After you copy a box, its tab says **copied**. If you change anything that alters its text, the tab says **changed since copy**, and a note next to the Copy button names what changed. Opening and closing cards doesn't count.
-7. **Check a roll.** Hover over or Tab to any underlined value in the preview to see exactly what D&D Beyond will roll: the dice, the kind of roll (and damage type), the average, the range and the roll's action name. A damage roll with no damage type is flagged.
+7. **Check what still needs pasting.** After you copy a box, its tab says **copied**. If you change anything that alters its text, the tab says **changed since copy**, and a note next to the Copy button names what changed. Opening and closing cards doesn't count.
+8. **Check a roll.** Hover over or Tab to any underlined value in the preview to see exactly what D&D Beyond will roll: the dice, the kind of roll (and damage type), the average, the range and the roll's action name. A damage roll with no damage type is flagged.
 
 When you paste into a rich text box (the D&D Beyond homebrew editor), action names come out **bold-italic**. Plain text boxes get plain text.
 

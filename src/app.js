@@ -58,7 +58,7 @@
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const ATTACK_KINDS = ['melee', 'ranged', 'both'];
   const KIND_LABELS = [['melee', 'Melee attack'], ['ranged', 'Ranged attack'], ['both', 'Melee or ranged'], ['save', 'Saving throw'], ['spells', 'Spellcasting'], ['text', 'Text']];
-  const TAB_LABELS = { traits: 'Traits', actions: 'Actions', bonus: 'Bonus Actions', reactions: 'Reactions', legendary: 'Legendary' };
+  const TAB_LABELS = { traits: 'Traits', actions: 'Actions', bonus: 'Bonus Actions', reactions: 'Reactions', legendary: 'Legendary', lair: 'Lair' };
 
   const newDamage = (type = 'Slashing') => ({ count: 1, die: 8, mod: 3, type });
 
@@ -69,7 +69,7 @@
       name,
       kind,
       section,
-      usage: { type: isSave && section !== 'traits' ? 'recharge' : 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
+      usage: { type: isSave && section !== 'traits' && section !== 'lair' ? 'recharge' : 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
       toHit: 5,
       reach: 5,
       rangeNormal: 80,
@@ -136,6 +136,7 @@
       wording,
       multiattack,
       legendary,
+      lair: { initiative: 20, noRepeat: true, text: '', ...(m.lair || {}) },
       actions: (m.actions || []).map(normalizeAction),
       // Which sections were copied, as hashes of their exact output: { [sectionKey]: { hash, at, actions } }.
       copied: m.copied && typeof m.copied === 'object' && !Array.isArray(m.copied) ? m.copied : {},
@@ -472,11 +473,14 @@
   }
 
   function usageControls(a) {
+    const section = field('Section', select(F.SECTIONS.map((s) => [s.key, s.title]), () => F.sectionOf(a), (v) => {
+      a.section = v;
+      ui.tab[current().id] = v;
+    }, { structural: true, title: 'statblock section' }));
+    // Lair actions have no usage tag, and an unnamed one has no header to put it in.
+    if (F.sectionOf(a) === 'lair') return h('div', { class: 'card-foot' }, section);
     const wrap = h('div', { class: 'card-foot' },
-      field('Section', select(F.SECTIONS.map((s) => [s.key, s.title]), () => F.sectionOf(a), (v) => {
-        a.section = v;
-        ui.tab[current().id] = v;
-      }, { structural: true, title: 'statblock section' })),
+      section,
       field('Usage', select([['none', 'Always'], ['recharge', 'Recharge'], ['perDay', 'Per day'], ['cost', 'Costs actions'], ['custom', 'Custom']],
         () => a.usage.type, (v) => { a.usage.type = v; }, { structural: true, title: 'usage limit' })));
     if (a.usage.type === 'cost') {
@@ -675,8 +679,9 @@
   function actionCard(m, a, index) {
     const open = isOpen(m, a.id);
     const card = cardShell(a.id, open);
+    const isLair = F.sectionOf(a) === 'lair';
     if (!open) {
-      card.append(collapsedHead(m, a.id, a.name || 'Unnamed action', summarize(a)));
+      card.append(collapsedHead(m, a.id, a.name || (isLair ? 'Lair action' : 'Unnamed action'), summarize(a)));
       return card;
     }
 
@@ -692,7 +697,7 @@
 
     card.append(h('div', { class: 'card-head' },
       collapseBtn(m),
-      textInput(() => a.name, (v) => { a.name = v; }, { class: 'card-name', placeholder: 'Action name', 'aria-label': 'Action name' }),
+      textInput(() => a.name, (v) => { a.name = v; }, { class: 'card-name', placeholder: isLair ? 'Name (optional)' : 'Action name', 'aria-label': 'Action name' }),
       h('div', { class: 'card-tools' },
         iconBtn('copy', 'Copy this action', () => copyBlocks([a.id])),
         iconBtn('up', 'Move up', () => move(-1), { disabled: pos === 0 }),
@@ -715,6 +720,9 @@
       }, { structural: true, title: 'kind of action' })));
 
     const body = h('div', { class: 'card-body' }, warnList(() => F.actionWarnings(a)));
+    if (isLair) {
+      body.append(h('p', { class: 'hint' }, 'Lair actions are usually unnamed: leave the name empty and the text is pasted as its own paragraph.'));
+    }
     if (F.sectionOf(a) === 'traits' && !F.isAttack(a)) {
       body.append(h('p', { class: 'hint' }, 'Traits are passive features: Regeneration, Pack Tactics, Legendary Resistance, auras. Use Usage → Custom for tags like “3/Day, or 4/Day in Lair”.'));
     }
@@ -782,6 +790,36 @@
     return card;
   }
 
+  function lairCard(m) {
+    const l = m.lair;
+    const open = isOpen(m, 'lair-intro');
+    const card = cardShell('lair-intro', open);
+    if (!open) {
+      const summary = l.text.trim() ? 'Custom intro' : `Initiative count ${l.initiative}${l.noRepeat ? ' · no repeats' : ''}`;
+      card.append(collapsedHead(m, 'lair-intro', 'Lair Actions intro', summary));
+      return card;
+    }
+    card.append(
+      h('div', { class: 'card-head' },
+        collapseBtn(m),
+        h('span', { class: 'card-title' }, 'Lair Actions intro'),
+        iconBtn('copy', 'Copy lair actions intro', () => copyBlocks(['lair-intro']))),
+      h('div', { class: 'card-body' },
+        h('div', { class: 'fields' },
+          field('Initiative count', stepper(() => l.initiative, (v) => { l.initiative = v; }, { min: 1, max: 30, title: 'lair action initiative count' })),
+          h('label', { class: 'check', style: 'height:38px;align-self:flex-end' },
+            h('input', { type: 'checkbox', checked: l.noRepeat, onchange: (e) => { l.noRepeat = e.target.checked; update(); } }),
+            h('span', null, 'Can’t use the same effect two rounds in a row'))),
+        field('Custom intro (optional)', h('textarea', {
+          class: 'input', rows: '3', placeholder: 'Replaces the whole intro paragraph',
+          value: l.text, oninput: (e) => { l.text = e.target.value; update(); },
+        })),
+        diceHint(),
+        warnList(() => F.lairWarnings(m)),
+        h('p', { class: 'hint' }, `The intro uses 2014 wording and names the monster as “${m.subject || `The ${m.name || 'creature'}`}”. The entries below follow the monster’s ${m.wording} wording.`)));
+    return card;
+  }
+
   const DEFAULT_NAMES = { melee: 'Claw', ranged: 'Longbow', both: 'Javelin', spells: 'Spellcasting' };
 
   function addActionArea(m, key) {
@@ -791,7 +829,7 @@
     }, icon('plus'), 'Add action');
     const kinds = ui.addOpen && h('div', { class: 'add-kinds', role: 'group', 'aria-label': 'Kind of action to add' },
       KIND_LABELS.filter(([k]) => F.kindAllowed(k, key)).map(([kind, label]) => addBtn(label, () => {
-        const name = DEFAULT_NAMES[kind]
+        const name = key === 'lair' ? '' : DEFAULT_NAMES[kind]
           || (kind === 'save' ? (key === 'traits' ? 'Aura' : 'Breath Weapon') : ({ reactions: 'Parry', traits: 'Pack Tactics' }[key] || 'Ability'));
         const a = newAction(kind, name, key);
         m.actions.push(a);
@@ -914,6 +952,7 @@
     keepFocus(editor, () => editor.replaceChildren(...[
       key === 'actions' && multiattackCard(m),
       key === 'legendary' && actions.length && legendaryCard(m),
+      key === 'lair' && actions.length && lairCard(m),
       actions.map((a) => actionCard(m, a, m.actions.indexOf(a))),
       !actions.length && key !== 'actions' && h('p', { class: 'empty-editor' }, `Nothing in ${box} yet.`),
       addActionArea(m, key),

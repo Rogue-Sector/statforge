@@ -206,3 +206,27 @@ test('signedInputState flags text that is not a number, but not a half-typed sig
 test('a signed field never stores NaN: unreadable text parses to null', () => {
   for (const t of ['NaN', 'Infinity', '1e3', '0x10', '']) assert.equal(L.parseSigned(t), null, t);
 });
+
+// ---- lair actions in the copied tracker ----
+
+test('copy status tracks the Lair Actions section, and names unnamed entries by their first words', () => {
+  const m = wyvernRider();
+  m.subject = 'The wyvern';
+  m.actions.push({ ...m.actions[0], id: 'lr-1', name: '', kind: 'text', section: 'lair', description: 'Sand swirls around the wyvern in a 20-foot radius.' });
+  const lair = () => F.formatSections(m).find((s) => s.key === 'lair');
+  const rec = L.snapshotSection(lair(), F.toPlain);
+  assert.deepEqual(Object.keys(rec.actions), ['lair-intro', 'lr-1']);
+  assert.equal(L.copyStatus(rec, lair(), F.toPlain).state, 'copied');
+
+  m.actions[3].description = 'Sand swirls around the wyvern in a 30-foot radius.';
+  let st = L.copyStatus(rec, lair(), F.toPlain);
+  assert.equal(st.state, 'changed');
+  assert.deepEqual(st.changed, ['Sand swirls around the…']);
+
+  m.actions[3].description = 'Sand swirls around the wyvern in a 20-foot radius.';
+  m.lair = { initiative: 10 };
+  st = L.copyStatus(rec, lair(), F.toPlain);
+  assert.deepEqual(st.changed, ['Lair Actions intro']);
+  assert.equal(L.blockName({ id: 'x', tokens: [{ t: 'text', v: 'Quake.' }] }), 'Quake');
+  assert.equal(L.blockName({ id: 'x', tokens: [{ t: 'text', v: '' }] }), 'a lair action');
+});

@@ -38,11 +38,20 @@
     return { hash: hashString(texts.join('\n\n')), at, actions };
   }
 
-  /** The name a block is shown under in messages: "Bite", "Multiattack", … */
+  /**
+   * The name a block is shown under in messages: "Bite", "Multiattack", … A lair action with no
+   * name is shown by its first few words: "Magma erupts from a…".
+   */
   function blockName(block) {
     if (block.id === 'legendary-intro') return 'Legendary Action Uses';
+    if (block.id === 'lair-intro') return 'Lair Actions intro';
     const first = block.tokens && block.tokens[0];
-    return first ? String(first.v).replace(/\.$/, '').replace(/\s*\(.*\)$/, '') : 'an action';
+    if (!first) return 'an action';
+    if (first.t !== 'name') {
+      const words = block.tokens.map((t) => (t.t === 'roll' ? t.display : t.v || '')).join('').trim().split(/\s+/);
+      return words.length > 4 ? `${words.slice(0, 4).join(' ')}…` : words.join(' ').replace(/\.$/, '') || 'a lair action';
+    }
+    return String(first.v).replace(/\.$/, '').replace(/\s*\(.*\)$/, '');
   }
 
   /**

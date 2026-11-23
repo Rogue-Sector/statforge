@@ -524,19 +524,26 @@
       return tokens;
     }
 
+    // "Hit or Miss:" when the effect happens either way; an optional "Miss:" sentence follows.
+    const hitLabel = a.hitOrMiss ? 'Hit or Miss:' : 'Hit:';
     if (wording === '2014') {
       tokens.push(text(' '), { t: 'label', v: KINDS_2014[a.kind] || KINDS_2014.melee }, text(' '));
       tokens.push(...toHitTokens(a.toHit, name));
-      tokens.push(text(` to hit, ${rangeText(a)}, one target. `), { t: 'label', v: 'Hit:' }, text(' '));
+      tokens.push(text(` to hit, ${rangeText(a)}, one target. `), { t: 'label', v: hitLabel }, text(' '));
       tokens.push(...attackEffect2014(a, name, subject));
-      return endSentence(tokens);
+    } else {
+      tokens.push(text(' '), { t: 'label', v: KINDS[a.kind] || KINDS.melee }, text(' '));
+      tokens.push(...toHitTokens(a.toHit, name));
+      tokens.push(text(`, ${rangeText(a)} `), { t: 'label', v: hitLabel }, text(' '));
+      tokens.push(...effectTokens(a, name, { allowSave: true, subject }));
     }
-
-    tokens.push(text(' '), { t: 'label', v: KINDS[a.kind] || KINDS.melee }, text(' '));
-    tokens.push(...toHitTokens(a.toHit, name));
-    tokens.push(text(`, ${rangeText(a)} `), { t: 'label', v: 'Hit:' }, text(' '));
-    tokens.push(...effectTokens(a, name, { allowSave: true, subject }));
-    return endSentence(tokens);
+    endSentence(tokens);
+    const miss = clean(a.miss);
+    if (miss) {
+      tokens.push(text(' '), { t: 'label', v: 'Miss:' }, text(' '), ...inline(miss, name));
+      endSentence(tokens);
+    }
+    return tokens;
   }
 
   const isAttack = (a) => a.kind in KINDS;
@@ -578,6 +585,7 @@
     const fields = [];
     if (a.kind === 'text') fields.push(['Trigger', a.trigger], [clean(a.trigger) ? 'Response' : 'Description', a.description]);
     if (a.kind in KINDS || a.kind === 'save') fields.push(['Rider', a.rider]);
+    if (a.kind in KINDS) fields.push(['Miss', a.miss]);
     if (a.kind === 'save' && a.success === 'custom') fields.push(['Success', a.successText]);
     if ((a.kind in KINDS || a.kind === 'save') && a.healing && a.healing.enabled) fields.push(['Healing', a.healing.text]);
     for (const [label, value] of fields) {

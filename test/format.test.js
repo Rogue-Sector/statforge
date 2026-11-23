@@ -597,3 +597,41 @@ test('copy all includes Lair Actions with its heading, and HTML renders unnamed 
   assert.ok(all.html.includes('<h3>Lair Actions</h3><p>When fighting inside its lair'));
   assert.ok(all.html.includes('<p>Magma erupts from a point'));
 });
+
+// ---- miss lines ----
+
+test('miss: a "Miss:" sentence after the Hit clause, with inline dice', () => {
+  const a = action({ name: 'Acid Arrow', kind: 'ranged', toHit: 6, rangeNormal: 90, rangeLong: 0, damage: { count: 4, die: 4, mod: 0, type: 'Acid' }, miss: 'Half damage' });
+  assert.equal(
+    plain(F.formatAction(a)),
+    'Acid Arrow. Ranged Attack Roll: [rollable]+6;{"diceNotation":"1d20+6", "rollType":"to hit", "rollAction":"Acid Arrow"}[/rollable], range 90 ft. Hit: 10 [rollable](4d4);{"diceNotation":"4d4", "rollType":"damage", "rollAction":"Acid Arrow", "rollDamageType":"Acid"}[/rollable] Acid damage. Miss: Half damage.',
+  );
+  a.miss = 'The target takes {dmg 1d4 Acid} Acid damage.';
+  assert.match(plain(F.formatAction(a)), / Acid damage\. Miss: The target takes 2 \[rollable\]\(1d4\);\{"diceNotation":"1d4", "rollType":"damage", "rollAction":"Acid Arrow", "rollDamageType":"Acid"\}\[\/rollable\] Acid damage\.$/);
+  assert.ok(F.toHtml(F.formatAction(a)).includes(' Acid damage. <em>Miss:</em> The target takes 2 '));
+  // Blank miss text adds nothing.
+  a.miss = '   ';
+  assert.match(plain(F.formatAction(a)), /Acid damage\.$/);
+});
+
+test('miss: "Hit or Miss:" label, alone or with miss text, after riders and saves', () => {
+  const a = action({ name: 'Crush', toHit: 7, damage: { count: 2, die: 10, mod: 4, type: 'Bludgeoning' }, hitOrMiss: true });
+  assert.match(plain(F.formatAction(a)), /, reach 5 ft\. Hit or Miss: 15 \[rollable\]\(2d10 \+ 4\);.* Bludgeoning damage\.$/);
+  const sting = { ...wyvernRider().actions[1], miss: 'The wyvern can fly up to half its Speed' };
+  assert.equal(plain(F.formatAction(sting)), `${STING} Miss: The wyvern can fly up to half its Speed.`);
+  assert.ok(F.toHtml(F.formatAction(a)).includes('<em>Hit or Miss:</em> 15 '));
+});
+
+test('miss: 2014 wording uses the same labels, and other kinds ignore it', () => {
+  const a = action({ name: 'Slam', toHit: 5, damage: { count: 1, die: 8, mod: 3, type: 'Bludgeoning' }, miss: 'Half damage', hitOrMiss: false });
+  assert.equal(readable(F.formatAction(a, W14)), 'Slam. Melee Weapon Attack: «+5» to hit, reach 5 ft., one target. Hit: 7 «(1d8 + 3)» bludgeoning damage. Miss: Half damage.');
+  a.hitOrMiss = true;
+  assert.match(readable(F.formatAction(a, W14)), /one target\. Hit or Miss: 7 /);
+  assert.doesNotMatch(plain(F.formatAction(action({ kind: 'text', description: 'x', miss: 'nope' }))), /Miss/);
+  assert.doesNotMatch(plain(F.formatAction(breath({ miss: 'nope', hitOrMiss: true }))), /Miss/);
+});
+
+test('miss: unreadable dice in the miss text show up as a card warning', () => {
+  assert.match(F.actionWarnings(action({ miss: 'Takes {dmg 1d4 Wet}' }))[0], /^Miss: .*Wet/);
+  assert.deepEqual(F.actionWarnings(action({ kind: 'text', description: 'x', miss: '{bad}' })), []);
+});

@@ -28,10 +28,11 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
      - **+ Saving throw**: "the target must make a DC 16 Constitution saving throw or take…"
      - **+ Condition**: Poisoned, Grappled, Prone, …
      - **+ Rider text**: extra wording. Start it lowercase to continue the sentence, or with a capital letter to start a new sentence.
+     - **+ Miss**: what happens on a miss, added after the hit as "Miss: Half damage." It can hold dice. Tick **Hit or Miss** to label the effect "Hit or Miss:" instead of "Hit:" when it happens either way.
    - **Saving Throw.** Breath weapons and auras: DC, who it targets, what happens on a failure, and what happens on a success. It can also have **+ Healing**.
    - **Spellcasting.** Pick the ability, save DC and spell attack bonus, then add a line for each frequency ("At Will", "1/Day Each", …) and type the spells separated by commas. Each spell is wrapped as `[spell]Fireball[/spell]`, and anything in brackets like "(level 4 version)" stays outside the tag.
    - **Text.** Anything else, copied exactly as you type it. In Reactions it also has a **Trigger** box, which gives the 2024 "Trigger: … Response: …" layout.
-   - **Dice in text.** Text descriptions, Trigger and Response, rider text, custom Success text and the multiattack's extra text can hold clickable dice:
+   - **Dice in text.** Text descriptions, Trigger and Response, rider text, Miss text, custom Success text, the multiattack's extra text and a custom lair intro can hold clickable dice:
      - `{1d4}` gives a plain roll showing "1d4", e.g. "for {1d4} rounds".
      - `{dmg 3d6 Fire}` gives "10 (3d6)" that rolls Fire damage. Type the words "Fire damage" after it yourself. The damage type is optional.
      - `{heal 2d8+4}` gives "13 (2d8 + 4)" that rolls healing.

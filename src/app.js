@@ -80,6 +80,9 @@
       condition: { enabled: false, name: 'Poisoned', duration: '' },
       rider: '',
       showRider: false,
+      miss: '',
+      hitOrMiss: false,
+      showMiss: false,
       area: isSave ? 'each creature in a 15-foot Cone' : '',
       success: 'half',
       successText: '',
@@ -449,6 +452,16 @@
       diceHint());
   }
 
+  function missSection(a) {
+    return group('Miss', () => { a.miss = ''; a.hitOrMiss = false; a.showMiss = false; rerender(); },
+      textInput(() => a.miss, (v) => { a.miss = v; }, { placeholder: 'Half damage.', 'aria-label': 'miss text' }),
+      h('label', { class: 'check' },
+        h('input', { type: 'checkbox', checked: !!a.hitOrMiss, onchange: (e) => { a.hitOrMiss = e.target.checked; update(); } }),
+        h('span', null, 'Label the effect “Hit or Miss:” instead of “Hit:”')),
+      h('p', { class: 'hint' }, 'The Miss text goes after the Hit text as “Miss: Half damage.” Leave it empty if you only want “Hit or Miss:”.'),
+      diceHint());
+  }
+
   const NEXT_DIE = { 4: 6, 6: 8, 8: 10, 10: 12, 12: 12, 20: 20 };
 
   function versatileSection(a) {
@@ -546,13 +559,16 @@
     if (a.condition.enabled) body.push(conditionSection(a));
     if (a.healing.enabled) body.push(healingSection(a));
     if (a.showRider || a.rider) body.push(riderSection(a));
+    const hasMiss = a.showMiss || a.miss || a.hitOrMiss;
+    if (hasMiss) body.push(missSection(a));
 
     body.push(h('div', { class: 'add-row' },
       addBtn('+ Extra damage', () => { a.extraDamage.push({ count: 2, die: 6, mod: 0, type: 'Fire' }); rerender(); }),
       !a.save.enabled && addBtn('+ Save on hit', () => { a.save.enabled = true; rerender(); }),
       !a.condition.enabled && addBtn('+ Condition', () => { a.condition.enabled = true; rerender(); }),
       !a.healing.enabled && addBtn('+ Healing', () => { a.healing.enabled = true; rerender(); }),
-      !(a.showRider || a.rider) && addBtn('+ Rider text', () => { a.showRider = true; rerender(); })));
+      !(a.showRider || a.rider) && addBtn('+ Rider text', () => { a.showRider = true; rerender(); }),
+      !hasMiss && addBtn('+ Miss', () => { a.showMiss = true; rerender(); })));
     return body;
   }
 

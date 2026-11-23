@@ -22,6 +22,13 @@
     ranged: 'Ranged Attack Roll:',
     both: 'Melee or Ranged Attack Roll:',
   };
+  const KINDS_2014 = {
+    melee: 'Melee Weapon Attack:',
+    ranged: 'Ranged Weapon Attack:',
+    both: 'Melee or Ranged Weapon Attack:',
+  };
+  // Statblock wording: the 2024 rules ("Melee Attack Roll:", "Failure:") or 2014 ("Melee Weapon Attack:").
+  const WORDINGS = ['2024', '2014'];
   const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   const int = (v, fallback = 0) => {
@@ -77,9 +84,11 @@
     }];
   }
 
-  function damageTokens(d, actionName) {
+  /** 2014 prose lowercases the damage type ("slashing damage"); the roll's rollDamageType never changes. */
+  function damageTokens(d, actionName, wording = '2024') {
     const type = clean(d.type) || 'Bludgeoning';
-    if (!hasDice(d)) return [text(`${avgDamage(d)} ${type} damage`)];
+    const shown = wording === '2014' ? type.toLowerCase() : type;
+    if (!hasDice(d)) return [text(`${avgDamage(d)} ${shown} damage`)];
     return [
       text(`${avgDamage(d)} `),
       {
@@ -87,7 +96,7 @@
         display: diceText(d),
         json: rollJson({ diceNotation: diceNotation(d), rollType: 'damage', rollAction: actionName, rollDamageType: type }),
       },
-      text(` ${type} damage`),
+      text(` ${shown} damage`),
     ];
   }
 
@@ -199,37 +208,72 @@
     return clean(hl.text) || isDamage(hl) ? hl : null;
   }
 
-  /** "regains 13 (2d8 + 4) Hit Points", or the custom wording, without the subject. */
-  function healTokens(hl, name) {
+  /** "regains 13 (2d8 + 4) Hit Points" ("hit points" in 2014 wording), or the custom wording, without the subject. */
+  function healTokens(hl, name, wording = '2024') {
     const custom = clean(hl.text);
     if (custom) return inline(custom, name);
-    if (!hasDice(hl)) return [text(`regains ${avgDamage(hl)} Hit Points`)];
+    const hp = wording === '2014' ? 'hit points' : 'Hit Points';
+    if (!hasDice(hl)) return [text(`regains ${avgDamage(hl)} ${hp}`)];
     return [
       text(`regains ${avgDamage(hl)} `),
       { t: 'roll', display: diceText(hl), json: rollJson({ diceNotation: diceNotation(hl), rollType: 'heal', rollAction: name }) },
-      text(' Hit Points'),
+      text(` ${hp}`),
     ];
   }
 
-  /**
-   * What happens on a hit (attacks) or a failed save (save actions): damage, versatile damage,
-   * extra damage, an optional rider save, a condition, healing and a free-text rider.
-   */
-  function effectTokens(action, name, { allowSave, subject = 'The creature' }) {
+  const conditionOf = (action) =>
+    (action.condition && action.condition.enabled && clean(action.condition.name) ? action.condition : null);
+
+  /** Damage, versatile damage and extra damage: "7 (1d8 + 3) Slashing damage, or … plus …". */
+  function damageListTokens(action, name, wording) {
     const out = [];
     const versatile = versatileOf(action);
     const damages = [action.damage, ...(action.extraDamage || [])].filter(isDamage);
     damages.forEach((d, i) => {
       if (i > 0) out.push(text(versatile ? ', plus ' : ' plus '));
-      out.push(...damageTokens(d, name));
+      out.push(...damageTokens(d, name, wording));
       if (i === 0 && versatile) {
-        out.push(text(', or '), ...damageTokens({ ...versatile, type: clean(versatile.type) || clean(d.type) }, name));
-        const wording = versatile.text == null ? VERSATILE_WORDING : clean(versatile.text);
-        if (wording) out.push(text(` ${wording}`));
+        out.push(text(', or '), ...damageTokens({ ...versatile, type: clean(versatile.type) || clean(d.type) }, name, wording));
+        const words = versatile.text == null ? VERSATILE_WORDING : clean(versatile.text);
+        if (words) out.push(text(` ${words}`));
       }
     });
+    return out;
+  }
 
-    const cond = action.condition && action.condition.enabled && clean(action.condition.name) ? action.condition : null;
+  /**
+   * Healing, then the free-text rider, appended to an effect. `afterSave` is true when a save or
+   * condition came before, so healing starts its own sentence.
+   */
+  function pushHealAndRider(out, action, name, { subject, afterSave, versatile, wording }) {
+    const heal = healingOf(action);
+    if (heal) {
+      const self = heal.who !== 'target';
+      const clause = healTokens(heal, name, wording);
+      if (!out.length) out.push(text(`${self ? subject : 'The target'} `), ...clause);
+      else if (afterSave) { endSentence(out); out.push(text(` ${self ? subject : 'The target'} `), ...clause); }
+      else out.push(text(`${versatile ? ',' : ''} and ${self ? midSentence(subject) : 'the target'} `), ...clause);
+    }
+
+    const rider = clean(action.rider);
+    if (rider) {
+      const r = inline(rider, name);
+      if (!out.length) out.push(...r);
+      else if (/^[,;:.]/.test(rider)) out.push(...r);
+      else if (/^[A-Z]/.test(rider)) { endSentence(out); out.push(text(' '), ...r); }
+      else out.push(text(' '), ...r);
+    }
+    return out;
+  }
+
+  /**
+   * What happens on a hit (attacks) or a failed save (save actions), in 2024 wording: damage,
+   * versatile damage, extra damage, an optional rider save, a condition, healing and a free-text rider.
+   */
+  function effectTokens(action, name, { allowSave, subject = 'The creature' }) {
+    const out = damageListTokens(action, name, '2024');
+    const versatile = versatileOf(action);
+    const cond = conditionOf(action);
     const save = allowSave && action.save && action.save.enabled ? action.save : null;
 
     if (save) {
@@ -245,22 +289,107 @@
       out.push(...conditionTokens(cond, out.length ? ', and the target has the ' : 'The target has the '));
     }
 
-    const heal = healingOf(action);
-    if (heal) {
-      const self = heal.who !== 'target';
-      const clause = healTokens(heal, name);
-      if (!out.length) out.push(text(`${self ? subject : 'The target'} `), ...clause);
-      else if (save || cond) { endSentence(out); out.push(text(` ${self ? subject : 'The target'} `), ...clause); }
-      else out.push(text(`${versatile ? ',' : ''} and ${self ? midSentence(subject) : 'the target'} `), ...clause);
+    return pushHealAndRider(out, action, name, { subject, afterSave: !!(save || cond), versatile, wording: '2024' });
+  }
+
+  // ---- 2014 wording -------------------------------------------------------
+
+  /**
+   * A 2014 condition clause: "is [condition]Grappled[/condition] (escape DC 13)". `verb` is
+   * 'is', 'is also' or 'be'. Exhaustion reads "suffers one level of …" instead.
+   */
+  function conditionTokens2014(cond, lead, verb) {
+    const exhaustion = { is: 'suffers one level of', 'is also': 'also suffers one level of', be: 'suffer one level of' };
+    const v = cond.name === 'Exhaustion' ? exhaustion[verb] : verb;
+    const out = [text(`${lead}${v} `), { t: 'cond', v: cond.name }];
+    const duration = clean(cond.duration);
+    if (duration) out.push(text(` ${duration}`));
+    return out;
+  }
+
+  /**
+   * "must make a DC 16 Constitution saving throw, taking 24 (7d6) poison damage on a failed save,
+   * or half as much damage on a successful one", without the subject. `mode` is what happens on a
+   * success: 'half', 'none' or 'custom' (the caller adds the custom sentence).
+   */
+  function saveClause2014({ dc, ability, damage, mode, cond }) {
+    const st = `DC ${dc} ${ability} saving throw`;
+    const out = [];
+    if (damage.length && mode === 'half') {
+      out.push(text(`must make a ${st}, taking `), ...damage, text(' on a failed save, or half as much damage on a successful one'));
+      if (cond) out.push(text('.'), ...conditionTokens2014(cond, ' On a failed save, the target ', 'is also'));
+    } else if (damage.length && mode === 'custom') {
+      out.push(text(`must make a ${st}. On a failed save, the target takes `), ...damage);
+      if (cond) out.push(...conditionTokens2014(cond, ' and ', 'is'));
+    } else if (damage.length) {
+      out.push(text(`must succeed on a ${st} or take `), ...damage);
+      if (cond) out.push(...conditionTokens2014(cond, ' and ', 'be'));
+    } else if (cond) {
+      out.push(text(`must succeed on a ${st}`), ...conditionTokens2014(cond, ' or ', 'be'));
+    } else {
+      out.push(text(`must make a ${st}`));
+    }
+    return out;
+  }
+
+  /** Lowercases a leading "The", "It", "A", … so custom text can follow "On a successful save,". */
+  function continueSentence(tokens) {
+    const first = tokens[0];
+    if (!first || first.t !== 'text') return tokens;
+    const m = /^(The|It|Its|A|An|They|Their|This|That|Each|Any)\b/.exec(first.v);
+    if (!m) return tokens;
+    return [text(first.v[0].toLowerCase() + first.v.slice(1)), ...tokens.slice(1)];
+  }
+
+  /** What happens on a hit, in 2014 wording. A rider save starts its own sentence, as in the 2014 books. */
+  function attackEffect2014(action, name, subject) {
+    const out = damageListTokens(action, name, '2014');
+    const versatile = versatileOf(action);
+    const cond = conditionOf(action);
+    const save = action.save && action.save.enabled ? action.save : null;
+
+    if (save) {
+      if (out.length) { endSentence(out); out.push(text(' ')); }
+      const damage = isDamage(save.damage) ? damageTokens(save.damage, name, '2014') : [];
+      out.push(text('The target '), ...saveClause2014({
+        dc: int(save.dc), ability: save.ability, damage, mode: save.half !== false ? 'half' : 'none', cond,
+      }));
+    } else if (cond) {
+      out.push(...conditionTokens2014(cond, out.length ? ', and the target ' : 'The target ', 'is'));
     }
 
-    const rider = clean(action.rider);
-    if (rider) {
-      const r = inline(rider, name);
-      if (!out.length) out.push(...r);
-      else if (/^[,;:.]/.test(rider)) out.push(...r);
-      else if (/^[A-Z]/.test(rider)) { endSentence(out); out.push(text(' '), ...r); }
-      else out.push(text(' '), ...r);
+    return pushHealAndRider(out, action, name, { subject, afterSave: !!(save || cond), versatile, wording: '2014' });
+  }
+
+  /**
+   * A 2014 save action after its name: "Each creature in a 15-foot Cone must make a DC 15 Dexterity
+   * saving throw, taking 22 (5d8) fire damage on a failed save, or half as much damage on a successful one."
+   */
+  function saveAction2014(a, name, subject) {
+    const save = a.save || {};
+    const area = clean(a.area);
+    const lead = area ? area[0].toUpperCase() + area.slice(1) : 'The target';
+    const damage = damageListTokens(a, name, '2014');
+    const cond = conditionOf(a);
+    const successText = clean(a.successText);
+    const success = a.success || 'half';
+    const mode = success === 'half' ? 'half' : success === 'custom' && successText ? 'custom' : 'none';
+
+    const out = [text(`${lead} `), ...saveClause2014({ dc: int(save.dc, 10), ability: save.ability || 'Dexterity', damage, mode, cond })];
+    const heal = healingOf(a);
+    if (heal && !damage.length && !cond) {
+      // Nothing else happens on a failure, so the healing says when it applies.
+      endSentence(out);
+      const who = heal.who !== 'target' ? midSentence(subject) : 'the target';
+      out.push(text(` On a failed save, ${who} `), ...healTokens(heal, name, '2014'));
+      pushHealAndRider(out, { rider: a.rider }, name, { subject, afterSave: true, wording: '2014' });
+    } else {
+      pushHealAndRider(out, a, name, { subject, afterSave: true, wording: '2014' });
+    }
+    endSentence(out);
+    if (mode === 'custom') {
+      out.push(text(' On a successful save, '), ...continueSentence(inline(successText, name)));
+      endSentence(out);
     }
     return out;
   }
@@ -328,12 +457,20 @@
 
   // ---- public formatters -----------------------------------------------
 
+  /** ctx: { subject: "The dragon", wording: '2024' | '2014' }. */
   function formatAction(a, ctx = {}) {
     const name = clean(a.name) || 'Unnamed Action';
     const tokens = headerTokens(a, name);
+    const wording = ctx.wording === '2014' ? '2014' : '2024';
+    const subject = ctx.subject || 'The creature';
 
     if (a.kind === 'spells') {
-      tokens.push(...spellcastingTokens(a, { subject: ctx.subject || 'The creature' }));
+      tokens.push(...spellcastingTokens(a, { subject }));
+      return tokens;
+    }
+
+    if (a.kind === 'save' && wording === '2014') {
+      tokens.push(text(' '), ...saveAction2014(a, name, subject));
       return tokens;
     }
 
@@ -371,10 +508,18 @@
       return tokens;
     }
 
+    if (wording === '2014') {
+      tokens.push(text(' '), { t: 'label', v: KINDS_2014[a.kind] || KINDS_2014.melee }, text(' '));
+      tokens.push(...toHitTokens(a.toHit, name));
+      tokens.push(text(` to hit, ${rangeText(a)}, one target. `), { t: 'label', v: 'Hit:' }, text(' '));
+      tokens.push(...attackEffect2014(a, name, subject));
+      return endSentence(tokens);
+    }
+
     tokens.push(text(' '), { t: 'label', v: KINDS[a.kind] || KINDS.melee }, text(' '));
     tokens.push(...toHitTokens(a.toHit, name));
     tokens.push(text(`, ${rangeText(a)} `), { t: 'label', v: 'Hit:' }, text(' '));
-    tokens.push(...effectTokens(a, name, { allowSave: true, subject: ctx.subject || 'The creature' }));
+    tokens.push(...effectTokens(a, name, { allowSave: true, subject }));
     return endSentence(tokens);
   }
 
@@ -435,6 +580,15 @@
   }
   const midSentence = (subject) => subject.replace(/^The /, 'the ');
 
+  /**
+   * The monster's wording, '2024' or '2014'. Monsters saved before the setting existed used
+   * legendary.style for the legendary intro only; that becomes the whole monster's wording.
+   */
+  function wordingOf(monster) {
+    if (WORDINGS.includes(monster.wording)) return monster.wording;
+    return monster.legendary && monster.legendary.style === '2014' ? '2014' : '2024';
+  }
+
   /** Returns null when the multiattack is off or nothing is selected. */
   function formatMultiattack(monster) {
     const m = monster.multiattack;
@@ -454,13 +608,13 @@
     return tokens;
   }
 
-  /** The paragraph that opens the Legendary Actions section, in 2024 or 2014 wording. */
+  /** The paragraph that opens the Legendary Actions section, in the monster's wording. */
   function formatLegendaryIntro(monster) {
     const l = monster.legendary || {};
     const uses = Math.max(int(l.uses, 3), 1);
     const lair = int(l.lairUses, 0);
     const subject = subjectOf(monster);
-    if (l.style === '2014') {
+    if (wordingOf(monster) === '2014') {
       return [text(`${subject} can take ${uses} legendary action${uses === 1 ? '' : 's'}, choosing from the options below. Only one legendary action option can be used at a time and only at the end of another creature’s turn. ${subject} regains spent legendary actions at the start of its turn.`)];
     }
     return [
@@ -481,7 +635,8 @@
       if (s.key === 'legendary' && actions.length) {
         blocks.push({ id: 'legendary-intro', section: s.key, tokens: formatLegendaryIntro(monster) });
       }
-      for (const a of actions) blocks.push({ id: a.id, section: s.key, tokens: formatAction(a, { subject: subjectOf(monster) }) });
+      const ctx = { subject: subjectOf(monster), wording: wordingOf(monster) };
+      for (const a of actions) blocks.push({ id: a.id, section: s.key, tokens: formatAction(a, ctx) });
       return { ...s, blocks };
     }).filter((s) => s.blocks.length);
   }
@@ -588,9 +743,10 @@
   }
 
   return {
-    DAMAGE_TYPES, ABILITIES, CONDITIONS, SECTIONS,
+    DAMAGE_TYPES, ABILITIES, CONDITIONS, SECTIONS, WORDINGS,
     VERSATILE_WORDING,
     avgDamage, diceText, diceNotation, isAttack, sectionOf, kindAllowed, actionWarnings, multiattackWarnings, parseInline,
+    wordingOf,
     formatAction, formatMultiattack, formatLegendaryIntro, formatSections, formatMonster,
     rollReadout,
     toPlain, toHtml, escapeHtml, blocksToClipboard, sectionsToClipboard,

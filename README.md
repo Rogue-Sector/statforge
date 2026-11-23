@@ -14,6 +14,9 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
 
 1. **Pick or create a monster** in the left sidebar, or press `Ctrl+K` (`Cmd+K` on a Mac) to find one by name, folder or type. The Wyvern Rider is preloaded as an example.
    - Click the line under the monster's name to set its **size, type, CR and folder**. They only organise your library and never appear in the copied text. **Creature is called** in the same panel sets how the text names it, e.g. "The dragon".
+   - **Wording** in the same panel picks the rules the text is written for, for the whole monster:
+     - **2024 rules**: "Melee Attack Roll: +5, reach 5 ft. Hit: 7 (1d8 + 3) Slashing damage." Saving throws get "Failure:" and "Success:" labels.
+     - **2014 rules**: "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage." Saving throws read "Each creature in a 30-foot cone must make a DC 15 Dexterity saving throw, taking 22 (5d8) fire damage on a failed save, or half as much damage on a successful one." Damage types and "hit points" are lowercase. Conditions keep their capital letter, because they're D&D Beyond tooltips.
    - The sidebar groups monsters by folder. Make one with **+ New folder**, then drag monsters onto it or pick it under a monster's name. Deleting a folder moves its monsters to Unsorted.
    - **Find a monster** filters the sidebar as you type.
 2. **Pick a section tab**: Traits, Actions, Bonus Actions, Reactions or Legendary. There's one tab for each box in D&D Beyond's homebrew monster form. Click an action to open it, and use **+ Add action** to add one to the current tab. You can move an action to another section later with its **Section** dropdown.
@@ -36,7 +39,7 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
      - `\{` types a plain brace. Anything in braces that the app can't read is pasted as you typed it, and a warning appears on the card.
    - **Usage** adds a clickable *(Recharge 5-6)* that rolls a d6, *(3/Day)*, *(Costs 2 Actions)* for legendary actions, or your own tag after the name.
 3. **Multiattack.** Tick it, then set how many times each attack is used. Only attacks in the Actions section can be picked.
-4. **Legendary Actions.** Once the section has an action, set the number of uses, the uses in its lair (0 if it has no lair), and 2024 or 2014 wording for the intro paragraph.
+4. **Legendary Actions.** Once the section has an action, set the number of uses and the uses in its lair (0 if it has no lair). The intro paragraph uses the monster's **Wording**. Monsters saved before the Wording setting existed keep the wording their legendary intro had.
 5. **Copy.** D&D Beyond has a separate box for each section, so copy one section at a time. The preview on the right shows the current tab's box:
    - **Copy Actions** (or Copy Special Traits, …) copies that whole box.
    - Clicking an action in the preview, or its copy icon, copies just that action.

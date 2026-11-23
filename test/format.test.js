@@ -368,3 +368,157 @@ test('versatile followed by healing uses a comma before "and"', () => {
   });
   assert.match(plain(F.formatAction(a, { subject: 'The orc' })), / Slashing damage if used with two hands, and the orc regains 2 \[rollable\]\(1d4\);/);
 });
+
+// ---- 2014 wording ----
+
+const W14 = { wording: '2014', subject: 'The dragon' };
+// The prose with each rollable shown as «display»; its JSON is checked separately where it matters.
+const readable = (tokens) => plain(tokens).replace(/\[rollable\]([^;]*);\{[^}]*\}\[\/rollable\]/g, '«$1»');
+const text14 = (over) => readable(F.formatAction(action(over), W14));
+
+test('2014 melee attack, exact markup, with the damage type lowercase only in the prose', () => {
+  const a = action({ name: 'Claw', toHit: 5, reach: 5, damage: { count: 1, die: 8, mod: 3, type: 'Slashing' } });
+  assert.equal(
+    plain(F.formatAction(a, W14)),
+    'Claw. Melee Weapon Attack: [rollable]+5;{"diceNotation":"1d20+5", "rollType":"to hit", "rollAction":"Claw"}[/rollable] to hit, reach 5 ft., one target. Hit: 7 [rollable](1d8 + 3);{"diceNotation":"1d8+3", "rollType":"damage", "rollAction":"Claw", "rollDamageType":"Slashing"}[/rollable] slashing damage.',
+  );
+  assert.ok(F.toHtml(F.formatAction(a, W14)).includes('<em>Melee Weapon Attack:</em> [rollable]+5;'));
+});
+
+test('2014 ranged and melee-or-ranged attacks, with extra damage', () => {
+  assert.equal(
+    text14({ name: 'Longbow', kind: 'ranged', toHit: 4, rangeNormal: 80, rangeLong: 320, damage: { count: 1, die: 8, mod: 2, type: 'Piercing' }, extraDamage: [{ count: 2, die: 6, mod: 0, type: 'Fire' }] }),
+    'Longbow. Ranged Weapon Attack: «+4» to hit, range 80/320 ft., one target. Hit: 6 «(1d8 + 2)» piercing damage plus 7 «(2d6)» fire damage.',
+  );
+  assert.equal(
+    text14({ name: 'Javelin', kind: 'both', toHit: 4, reach: 5, rangeNormal: 20, rangeLong: 60, damage: { count: 1, die: 6, mod: 2, type: 'Piercing' } }),
+    'Javelin. Melee or Ranged Weapon Attack: «+4» to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 5 «(1d6 + 2)» piercing damage.',
+  );
+  assert.equal(
+    text14({ name: 'Dart', kind: 'ranged', toHit: 4, rangeNormal: 20, rangeLong: 0, damage: { count: 1, die: 4, mod: 2, type: 'Piercing' } }),
+    'Dart. Ranged Weapon Attack: «+4» to hit, range 20 ft., one target. Hit: 4 «(1d4 + 2)» piercing damage.',
+  );
+});
+
+test('2014 versatile damage', () => {
+  const a = action({
+    name: 'Longsword', toHit: 5, damage: { count: 1, die: 8, mod: 3, type: 'Slashing' },
+    versatile: { enabled: true, count: 1, die: 10, mod: 3, type: 'Slashing' },
+    extraDamage: [{ count: 1, die: 6, mod: 0, type: 'Radiant' }],
+  });
+  assert.equal(
+    readable(F.formatAction(a, W14)),
+    'Longsword. Melee Weapon Attack: «+5» to hit, reach 5 ft., one target. Hit: 7 «(1d8 + 3)» slashing damage, or 8 «(1d10 + 3)» slashing damage if used with two hands, plus 3 «(1d6)» radiant damage.',
+  );
+});
+
+test('2014 keeps rollDamageType capitalized and the [condition] tag on the proper name', () => {
+  const out = plain(F.formatMonster({ ...wyvernRider(), wording: '2014' }).find((b) => b.id === 'a-sting').tokens);
+  assert.ok(out.includes('"rollDamageType":"Piercing"}[/rollable] piercing damage.'));
+  assert.ok(out.includes('"rollDamageType":"Poison"}[/rollable] poison damage on a failed save'));
+  assert.ok(out.includes('[condition]Poisoned[/condition]'));
+});
+
+test('2014 rider save: the Wyvern Rider Sting reads like the 2014 Monster Manual', () => {
+  const sting = F.formatMonster({ ...wyvernRider(), wording: '2014' }).find((b) => b.id === 'a-sting');
+  assert.equal(
+    readable(sting.tokens),
+    'Sting. Melee Weapon Attack: «+8» to hit, reach 10 ft., one target. Hit: 11 «(2d6 + 4)» piercing damage. The target must make a DC 16 Constitution saving throw, taking 24 «(7d6)» poison damage on a failed save, or half as much damage on a successful one. On a failed save, the target is also [condition]Poisoned[/condition] until the start of the wyvern’s next turn if they failed by 5 or more.',
+  );
+  const noHalf = text14({ name: 'Venom', save: { enabled: true, ability: 'Constitution', dc: 12, damage: { count: 3, die: 6, mod: 0, type: 'Poison' }, half: false } });
+  assert.match(noHalf, /piercing damage\. The target must succeed on a DC 12 Constitution saving throw or take 10 «\(3d6\)» poison damage\.$/);
+});
+
+test('2014 conditions: on a hit, after a save with no damage, and Exhaustion', () => {
+  assert.match(
+    text14({ name: 'Grab', condition: { enabled: true, name: 'Grappled', duration: '(escape DC 13)' } }),
+    /piercing damage, and the target is \[condition\]Grappled\[\/condition\] \(escape DC 13\)\.$/,
+  );
+  assert.match(
+    text14({ name: 'Slam', save: { enabled: true, ability: 'Strength', dc: 13, damage: null }, condition: { enabled: true, name: 'Prone', duration: '' }, rider: 'The slime then moves 5 feet' }),
+    /piercing damage\. The target must succeed on a DC 13 Strength saving throw or be \[condition\]Prone\[\/condition\]\. The slime then moves 5 feet\.$/,
+  );
+  assert.match(
+    text14({ name: 'Drain', save: { enabled: true, ability: 'Constitution', dc: 12, damage: { count: 3, die: 6, mod: 0, type: 'Necrotic' }, half: false }, condition: { enabled: true, name: 'Exhaustion', duration: '' } }),
+    /or take 10 «\(3d6\)» necrotic damage and suffer one level of \[condition\]Exhaustion\[\/condition\]\.$/,
+  );
+  assert.match(text14({ name: 'Tire', condition: { enabled: true, name: 'Exhaustion', duration: '' } }), /, and the target suffers one level of \[condition\]Exhaustion\[\/condition\]\.$/);
+});
+
+test('2014 healing uses lowercase "hit points" and the same sentence rules', () => {
+  const healing = heal();
+  assert.match(text14({ name: 'Drain', healing }), /piercing damage and the dragon regains 13 «\(2d8 \+ 4\)» hit points\.$/);
+  assert.match(text14({ name: 'Leech', condition: { enabled: true, name: 'Grappled', duration: '' }, healing }), /\[condition\]Grappled\[\/condition\]\. The dragon regains 13 «\(2d8 \+ 4\)» hit points\.$/);
+  assert.match(text14({ name: 'Mend', healing: heal({ who: 'target', text: 'regains {heal 1d6} Hit Points' }) }), /and the target regains 3 «\(1d6\)» Hit Points\.$/);
+});
+
+const breath = (over) => action({
+  name: 'Fire Breath', kind: 'save', usage: { type: 'recharge', recharge: 5 }, save: { ability: 'Dexterity', dc: 15 },
+  area: 'each creature in a 30-foot Cone', damage: { count: 5, die: 8, mod: 0, type: 'Fire' }, ...over,
+});
+const save14 = (over) => readable(F.formatAction(breath(over), W14));
+
+test('2014 save action, half damage on a success, exact markup', () => {
+  assert.equal(
+    plain(F.formatAction(breath({ success: 'half' }), W14)),
+    'Fire Breath [rollable](Recharge 5-6);{"diceNotation":"1d6", "rollType":"recharge", "rollAction":"Fire Breath"}[/rollable]. Each creature in a 30-foot Cone must make a DC 15 Dexterity saving throw, taking 22 [rollable](5d8);{"diceNotation":"5d8", "rollType":"damage", "rollAction":"Fire Breath", "rollDamageType":"Fire"}[/rollable] fire damage on a failed save, or half as much damage on a successful one.',
+  );
+  assert.equal(
+    save14({ success: 'half', extraDamage: [{ count: 2, die: 6, mod: 0, type: 'Cold' }], condition: { enabled: true, name: 'Blinded', duration: 'until the end of its next turn' } }),
+    'Fire Breath «(Recharge 5-6)». Each creature in a 30-foot Cone must make a DC 15 Dexterity saving throw, taking 22 «(5d8)» fire damage plus 7 «(2d6)» cold damage on a failed save, or half as much damage on a successful one. On a failed save, the target is also [condition]Blinded[/condition] until the end of its next turn.',
+  );
+});
+
+test('2014 save action, nothing on a success', () => {
+  assert.equal(save14({ success: 'none' }), 'Fire Breath «(Recharge 5-6)». Each creature in a 30-foot Cone must succeed on a DC 15 Dexterity saving throw or take 22 «(5d8)» fire damage.');
+  assert.equal(
+    save14({ name: 'Frightful Presence', usage: { type: 'none' }, damage: null, success: 'none', save: { ability: 'Wisdom', dc: 16 }, area: 'each creature of its choice within 120 feet', condition: { enabled: true, name: 'Frightened', duration: 'for 1 minute' } }),
+    'Frightful Presence. Each creature of its choice within 120 feet must succeed on a DC 16 Wisdom saving throw or be [condition]Frightened[/condition] for 1 minute.',
+  );
+  // "Half damage" with no damage has nothing to halve.
+  assert.equal(save14({ name: 'Glare', usage: { type: 'none' }, damage: null, success: 'half', area: '' }), 'Glare. The target must make a DC 15 Dexterity saving throw.');
+});
+
+test('2014 save action, custom success text', () => {
+  assert.equal(
+    save14({ success: 'custom', successText: 'The target takes half damage and is pushed {1d4} feet' }),
+    'Fire Breath «(Recharge 5-6)». Each creature in a 30-foot Cone must make a DC 15 Dexterity saving throw. On a failed save, the target takes 22 «(5d8)» fire damage. On a successful save, the target takes half damage and is pushed «1d4» feet.',
+  );
+  assert.equal(
+    save14({ success: 'custom', successText: 'it takes half damage', condition: { enabled: true, name: 'Blinded', duration: '' } }),
+    'Fire Breath «(Recharge 5-6)». Each creature in a 30-foot Cone must make a DC 15 Dexterity saving throw. On a failed save, the target takes 22 «(5d8)» fire damage and is [condition]Blinded[/condition]. On a successful save, it takes half damage.',
+  );
+  assert.equal(
+    save14({ name: 'Gas', usage: { type: 'none' }, damage: null, success: 'custom', successText: 'Grog is Poisoned for {1d4} rounds instead', condition: { enabled: true, name: 'Poisoned', duration: '' } }),
+    'Gas. Each creature in a 30-foot Cone must succeed on a DC 15 Dexterity saving throw or be [condition]Poisoned[/condition]. On a successful save, Grog is Poisoned for «1d4» rounds instead.',
+  );
+  // An empty custom text means nothing happens on a success, as in 2024 wording.
+  assert.equal(save14({ success: 'custom', successText: '  ' }), save14({ success: 'none' }));
+});
+
+test('2014 save action with healing', () => {
+  assert.equal(
+    save14({ name: 'Mend', usage: { type: 'none' }, damage: null, success: 'none', area: '', healing: heal({ who: 'target' }) }),
+    'Mend. The target must make a DC 15 Dexterity saving throw. On a failed save, the target regains 13 «(2d8 + 4)» hit points.',
+  );
+  assert.equal(
+    save14({ name: 'Siphon', usage: { type: 'none' }, healing: heal() }),
+    'Siphon. Each creature in a 30-foot Cone must make a DC 15 Dexterity saving throw, taking 22 «(5d8)» fire damage on a failed save, or half as much damage on a successful one. The dragon regains 13 «(2d8 + 4)» hit points.',
+  );
+});
+
+test('monster wording: the setting drives every section, and old legendary.style still counts', () => {
+  const m = dragon();
+  assert.equal(F.wordingOf(m), '2024');
+  m.wording = '2014';
+  const blocks = F.formatMonster(m);
+  assert.match(plain(blocks.find((b) => b.id === 'a-bite').tokens), /^Bite\. Melee Weapon Attack: /);
+  assert.match(plain(blocks.find((b) => b.id === 'legendary-intro').tokens), /^The dragon can take 3 legendary actions/);
+  // A monster saved before the setting existed: its legendary style becomes the wording.
+  assert.equal(F.wordingOf({ legendary: { style: '2014' } }), '2014');
+  assert.equal(F.wordingOf({ legendary: { style: '2024' } }), '2024');
+  assert.equal(F.wordingOf({}), '2024');
+  // The setting wins over a leftover style.
+  assert.equal(F.wordingOf({ wording: '2024', legendary: { style: '2014' } }), '2024');
+  assert.equal(F.wordingOf({ wording: 'nonsense', legendary: { style: '2014' } }), '2014');
+});

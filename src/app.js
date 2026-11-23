@@ -124,12 +124,18 @@
     // "Creature is called" used to live on the multiattack; it now belongs to the whole monster.
     const subject = m.subject != null ? m.subject : multiattack.subject;
     multiattack.subject = '';
+    // The 2024/2014 switch used to be legendary.style and only changed the legendary intro. It is
+    // now the monster's wording for every section; an old monster keeps the style it had.
+    const legendary = { uses: 3, lairUses: 0, ...(m.legendary || {}) };
+    const wording = F.wordingOf(m);
+    delete legendary.style;
     return {
       id: m.id || uid('m'),
       name: m.name || 'New Monster',
       subject: subject || '',
+      wording,
       multiattack,
-      legendary: { uses: 3, lairUses: 0, style: '2024', ...(m.legendary || {}) },
+      legendary,
       actions: (m.actions || []).map(normalizeAction),
       // Which sections were copied, as hashes of their exact output: { [sectionKey]: { hash, at, actions } }.
       copied: m.copied && typeof m.copied === 'object' && !Array.isArray(m.copied) ? m.copied : {},
@@ -566,7 +572,9 @@
     if (a.success === 'custom') {
       success.append(h('div', { class: 'field-grow' }, textInput(() => a.successText, (v) => { a.successText = v; }, { placeholder: 'Half damage only.', 'aria-label': 'success text' })));
     }
-    body.push(group('On a success', null, success, a.success === 'custom' && diceHint()));
+    const after2014 = a.success === 'custom' && current()?.wording === '2014'
+      && h('p', { class: 'hint' }, 'In 2014 wording this follows “On a successful save,”, e.g. “the target takes half damage and isn’t Blinded”.');
+    body.push(group('On a success', null, success, a.success === 'custom' && diceHint(), after2014));
 
     body.push(h('div', { class: 'add-row' },
       !a.damage && addBtn('+ Damage', () => { a.damage = { count: 6, die: 6, mod: 0, type: 'Fire' }; rerender(); }),
@@ -758,7 +766,7 @@
     const card = cardShell('legendary-intro', open);
     if (!open) {
       const lair = Number(l.lairUses) > Number(l.uses) ? ` (${l.lairUses} in lair)` : '';
-      card.append(collapsedHead(m, 'legendary-intro', 'Legendary Action Uses', `${l.uses}${lair} · ${l.style} wording`));
+      card.append(collapsedHead(m, 'legendary-intro', 'Legendary Action Uses', `${l.uses}${lair} · ${m.wording} wording`));
       return card;
     }
     card.append(
@@ -769,9 +777,8 @@
       h('div', { class: 'card-body' },
         h('div', { class: 'fields' },
           field('Uses', stepper(() => l.uses, (v) => { l.uses = v; }, { min: 1, max: 9, title: 'legendary action uses' })),
-          field('In lair', stepper(() => l.lairUses, (v) => { l.lairUses = v; }, { min: 0, max: 9, title: 'uses in lair' })),
-          h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Wording'), seg([['2024', '2024 rules'], ['2014', '2014 rules']], () => l.style, (v) => { l.style = v; }, { label: 'Wording' }))),
-        h('p', { class: 'hint' }, 'Set “In lair” to 0 if it has no lair. Use Usage → Costs actions on an action for “(Costs 2 Actions)”.')));
+          field('In lair', stepper(() => l.lairUses, (v) => { l.lairUses = v; }, { min: 0, max: 9, title: 'uses in lair' }))),
+        h('p', { class: 'hint' }, `Set “In lair” to 0 if it has no lair. Use Usage → Costs actions on an action for “(Costs 2 Actions)”. The intro uses the monster’s ${m.wording} wording; change it under the monster’s name.`)));
     return card;
   }
 
@@ -837,7 +844,9 @@
         field('CR', metaInput('cr', { list: 'crs', placeholder: '7', style: 'width:72px', spellcheck: 'false' })),
         field('Folder', folder),
         field('Creature is called', subject, 'field-grow'),
-        h('p', { class: 'hint' }, 'Size, type, CR and folder are for your library only and never appear in the copied text. “Creature is called” is how the text names it in Multiattack, Legendary and healing, e.g. “The dragon”.')) : '');
+        h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Wording'),
+          seg([['2024', '2024 rules'], ['2014', '2014 rules']], () => m.wording, (v) => { m.wording = v; }, { label: 'Wording' })),
+        h('p', { class: 'hint' }, 'Size, type, CR and folder are for your library only and never appear in the copied text. “Creature is called” is how the text names it in Multiattack, Legendary and healing, e.g. “The dragon”. Wording picks 2024 text (“Melee Attack Roll:”, “Failure:”) or 2014 text (“Melee Weapon Attack:”, “taking … on a failed save”) for every section.')) : '');
   }
 
   function tabCount(m, key) {

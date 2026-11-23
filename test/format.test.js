@@ -635,3 +635,48 @@ test('miss: unreadable dice in the miss text show up as a card warning', () => {
   assert.match(F.actionWarnings(action({ miss: 'Takes {dmg 1d4 Wet}' }))[0], /^Miss: .*Wet/);
   assert.deepEqual(F.actionWarnings(action({ kind: 'text', description: 'x', miss: '{bad}' })), []);
 });
+
+// ---- tooltip tags inside free text ----
+
+test('tags: action, skill, sense, condition and spell', () => {
+  assert.equal(inlinePlain('it can take the {action Hide} action'), 'it can take the [action]Hide[/action] action');
+  assert.equal(inlinePlain('a DC 15 Wisdom ({skill Perception}) check'), 'a DC 15 Wisdom ([skill]Perception[/skill]) check');
+  assert.equal(inlinePlain('unless it has {sense Darkvision}'), 'unless it has [sense]Darkvision[/sense]');
+  assert.equal(inlinePlain('it has the {condition Prone} condition'), 'it has the [condition]Prone[/condition] condition');
+  assert.equal(inlinePlain('it casts {spell Fireball}'), 'it casts [spell]Fireball[/spell]');
+  assert.equal(inlinePlain('{spell Fireball (level 4 version)}'), '[spell]Fireball[/spell] (level 4 version)');
+});
+
+test('tags: conditions and skills get their proper names; spacing is tidied', () => {
+  assert.equal(inlinePlain('{condition prone}'), '[condition]Prone[/condition]');
+  assert.equal(inlinePlain('{CONDITION  frightened }'), '[condition]Frightened[/condition]');
+  assert.equal(inlinePlain('{skill sleight  of hand}'), '[skill]Sleight of Hand[/skill]');
+  assert.equal(inlinePlain('{Skill animal handling}'), '[skill]Animal Handling[/skill]');
+  // Actions, senses and spells aren't checked, so they keep the name as typed.
+  assert.equal(inlinePlain('{action Use an Object}'), '[action]Use an Object[/action]');
+  assert.equal(inlinePlain('{sense tremorsense}'), '[sense]tremorsense[/sense]');
+});
+
+test('tags: unknown conditions and skills warn and stay as typed; escapes still work', () => {
+  const bad = F.parseInline('{condition Sleepy} and {skill Cooking} and {condition} and {spell }', 'X');
+  assert.equal(plain(bad.tokens), '{condition Sleepy} and {skill Cooking} and {condition} and {spell }');
+  assert.equal(bad.errors.length, 4);
+  assert.match(bad.errors[0], /“Sleepy” isn’t a condition/);
+  assert.match(bad.errors[1], /“Cooking” isn’t a skill/);
+  assert.match(bad.errors[2], /a tag such as \{condition Prone\}/);
+  assert.equal(inlinePlain('type \\{condition Prone} for a tag'), 'type {condition Prone} for a tag');
+  assert.match(F.actionWarnings(action({ kind: 'text', description: 'It is {condition Sleepy}' }))[0], /^Description: Can’t read \{condition Sleepy\}: “Sleepy” isn’t a condition/);
+  assert.deepEqual(F.actionWarnings(action({ kind: 'text', description: 'It is {condition Prone}' })), []);
+});
+
+test('tags: in actions, HTML, end-of-sentence periods and 2014 wording', () => {
+  const t = action({ name: 'Hide', kind: 'text', section: 'bonus', description: 'The goblin takes the {action Hide} action. It has {skill Stealth}' });
+  assert.equal(plain(F.formatAction(t)), 'Hide. The goblin takes the [action]Hide[/action] action. It has [skill]Stealth[/skill]');
+  const html = F.toHtml(F.formatAction(t));
+  assert.ok(html.includes('takes the [action]Hide[/action] action. It has [skill]Stealth[/skill]</p>'));
+  const r = action({ name: 'Trip', toHit: 5, damage: { count: 1, die: 6, mod: 3, type: 'Bludgeoning' }, rider: 'and the target has the {condition Prone} condition' });
+  assert.match(plain(F.formatAction(r)), / and the target has the \[condition\]Prone\[\/condition\] condition\.$/);
+  assert.match(plain(F.formatAction(r, W14)), / and the target has the \[condition\]Prone\[\/condition\] condition\.$/);
+  const s = action({ name: 'Look', kind: 'save', save: { ability: 'Wisdom', dc: 12 }, damage: null, area: '', success: 'custom', successText: 'it notices with {sense Truesight}' });
+  assert.match(plain(F.formatAction(s)), /Success: it notices with \[sense\]Truesight\[\/sense\]\.$/);
+});

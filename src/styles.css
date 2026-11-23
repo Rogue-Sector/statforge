@@ -512,7 +512,7 @@ textarea.input { height: auto; padding: 7px 10px; resize: vertical; line-height:
 }
 .roll:hover, .roll:focus-visible, .roll.is-open { background: var(--brass); text-decoration-color: var(--sheet-ink); }
 .roll:focus-visible { outline: 2px solid var(--sheet-ink); outline-offset: 1px; }
-.cond, .spell { text-decoration: underline 1px var(--brass-deep); text-underline-offset: 4px; }
+.cond, .spell, .tag { text-decoration: underline 1px var(--brass-deep); text-underline-offset: 4px; }
 .spell { font-style: italic; }
 .sb-empty { font-style: italic; color: #5a5446; margin: 0; }
 

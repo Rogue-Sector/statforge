@@ -426,7 +426,9 @@
   function diceHint() {
     const ex = (c) => h('code', null, c);
     return h('p', { class: 'hint dice-hint' }, 'Dice in text: ',
-      ex('{1d4}'), ' · ', ex('{dmg 3d6 Fire}'), ' · ', ex('{heal 2d8+4}'), ' · ', ex('{+5}'), '. Type ', ex('\\{'), ' for a plain brace.');
+      ex('{1d4}'), ' · ', ex('{dmg 3d6 Fire}'), ' · ', ex('{heal 2d8+4}'), ' · ', ex('{+5}'), '. Tags: ',
+      ex('{condition Prone}'), ' · ', ex('{skill Perception}'), ' · ', ex('{spell Fireball}'), ' · ', ex('{action Hide}'), ' · ', ex('{sense Darkvision}'),
+      '. Type ', ex('\\{'), ' for a plain brace.');
   }
 
   /** A titled part of a card (extra damage, condition, …) with an optional remove button. */
@@ -984,6 +986,7 @@
         case 'label': return h('span', { class: 'lb' }, tk.v);
         case 'cond': return h('span', { class: 'cond' }, tk.v);
         case 'spell': return h('span', { class: 'spell' }, tk.v);
+        case 'action': case 'skill': case 'sense': return h('span', { class: `tag tag-${tk.t}` }, tk.v);
         case 'br': return h('br');
         case 'roll': return rollChip(tk);
         default: return tk.v;

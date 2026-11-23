@@ -17,6 +17,11 @@
     'Blinded', 'Charmed', 'Deafened', 'Exhaustion', 'Frightened', 'Grappled', 'Incapacitated',
     'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious',
   ];
+  const SKILLS = [
+    'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception', 'History', 'Insight', 'Intimidation',
+    'Investigation', 'Medicine', 'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
+    'Sleight of Hand', 'Stealth', 'Survival',
+  ];
   const KINDS = {
     melee: 'Melee Attack Roll:',
     ranged: 'Ranged Attack Roll:',
@@ -66,8 +71,12 @@
 
   // ---- tokens -----------------------------------------------------------
   // An action is built as a list of tokens, then rendered to plain text, HTML or the preview.
-  //   { t: 'name' | 'label' | 'text' | 'cond', v }
+  //   { t: 'name' | 'label' | 'text' | 'br', v }
+  //   { t: 'cond' | 'spell' | 'action' | 'skill' | 'sense', v }   D&D Beyond tooltip tags
   //   { t: 'roll', display, json }
+
+  // Token type -> D&D Beyond tag: { t: 'cond', v: 'Prone' } pastes as [condition]Prone[/condition].
+  const TAGS = { cond: 'condition', spell: 'spell', action: 'action', skill: 'skill', sense: 'sense' };
 
   const text = (v) => ({ t: 'text', v });
 
@@ -100,12 +109,17 @@
     ];
   }
 
-  // ---- dice inside free text ---------------------------------------------
-  //   {1d4}            -> 1d4                 (rollType "roll")
-  //   {dmg 3d6 Fire}   -> 10 (3d6)            (rollType "damage", type optional)
-  //   {heal 2d8+4}     -> 13 (2d8 + 4)        (rollType "heal")
-  //   {+5}             -> +5                  (1d20+5, rollType "to hit")
-  //   \{               -> a literal {
+  // ---- dice and tags inside free text -------------------------------------
+  //   {1d4}               -> 1d4                 (rollType "roll")
+  //   {dmg 3d6 Fire}      -> 10 (3d6)            (rollType "damage", type optional)
+  //   {heal 2d8+4}        -> 13 (2d8 + 4)        (rollType "heal")
+  //   {+5}                -> +5                  (1d20+5, rollType "to hit")
+  //   {condition Prone}   -> [condition]Prone[/condition]   (checked against the 5e conditions)
+  //   {skill Perception}  -> [skill]Perception[/skill]      (checked against the 5e skills)
+  //   {spell Fireball}    -> [spell]Fireball[/spell]
+  //   {action Hide}       -> [action]Hide[/action]
+  //   {sense Darkvision}  -> [sense]Darkvision[/sense]
+  //   \{                  -> a literal {
   // Anything else in braces is left as typed and reported, never thrown.
 
   const DICE_RE = '(\\d+)\\s*d\\s*(\\d+)(?:\\s*([+-])\\s*(\\d+))?';
@@ -117,9 +131,32 @@
 
   const diceOf = (m) => ({ count: int(m[1]), die: int(m[2]), mod: m[3] ? int(`${m[3]}${m[4]}`) : 0 });
 
+  const TAG_RE = /^(action|skill|sense|condition|spell)\s+(\S.*)$/i;
+
+  /** "{condition prone}" body to a tag token, or a reason string. Checked names get their proper case. */
+  function inlineTag(kind, rawName) {
+    const name = rawName.replace(/\s+/g, ' ');
+    const known = (list) => list.find((x) => x.toLowerCase() === name.toLowerCase());
+    switch (kind.toLowerCase()) {
+      case 'condition': {
+        const c = known(CONDITIONS);
+        return c ? [{ t: 'cond', v: c }] : `“${name}” isn’t a condition`;
+      }
+      case 'skill': {
+        const sk = known(SKILLS);
+        return sk ? [{ t: 'skill', v: sk }] : `“${name}” isn’t a skill`;
+      }
+      case 'spell': return spellTokens(name);
+      case 'action': return [{ t: 'action', v: name }];
+      default: return [{ t: 'sense', v: name }];
+    }
+  }
+
   /** One "{…}" body to tokens, or a reason string when it can't be read. */
   function inlineRoll(body, actionName) {
     const inner = body.trim();
+    const tag = TAG_RE.exec(inner);
+    if (tag) return inlineTag(tag[1], tag[2]);
     const hit = /^([+-])\s*(\d+)$/.exec(inner);
     if (hit) return toHitTokens(int(`${hit[1]}${hit[2]}`), actionName);
     for (const [re, kind] of INLINE_FORMS) {
@@ -138,7 +175,7 @@
       }
       return [text(`${avgDamage(d)} `), { t: 'roll', display: diceText(d), json: rollJson(fields) }];
     }
-    return 'use {1d4}, {dmg 3d6 Fire}, {heal 2d8+4} or {+5}';
+    return 'use {1d4}, {dmg 3d6 Fire}, {heal 2d8+4}, {+5} or a tag such as {condition Prone}';
   }
 
   /**
@@ -743,9 +780,7 @@
       switch (tk.t) {
         case 'name': return opts.markdownBold ? `**${tk.v}**` : tk.v;
         case 'roll': return `[rollable]${tk.display};${tk.json}[/rollable]`;
-        case 'cond': return `[condition]${tk.v}[/condition]`;
-        case 'spell': return `[spell]${tk.v}[/spell]`;
-        default: return tk.v;
+        default: return TAGS[tk.t] ? `[${TAGS[tk.t]}]${tk.v}[/${TAGS[tk.t]}]` : tk.v;
       }
     }).join('');
   }
@@ -760,10 +795,8 @@
         case 'name': return `<strong><em>${escapeHtml(tk.v)}</em></strong>`;
         case 'label': return `<em>${escapeHtml(tk.v)}</em>`;
         case 'roll': return escapeHtml(`[rollable]${tk.display};${tk.json}[/rollable]`);
-        case 'cond': return escapeHtml(`[condition]${tk.v}[/condition]`);
-        case 'spell': return escapeHtml(`[spell]${tk.v}[/spell]`);
         case 'br': return '<br>';
-        default: return escapeHtml(tk.v);
+        default: return escapeHtml(TAGS[tk.t] ? `[${TAGS[tk.t]}]${tk.v}[/${TAGS[tk.t]}]` : tk.v);
       }
     }).join('');
     return `<p>${body}</p>`;
@@ -794,7 +827,7 @@
   }
 
   return {
-    DAMAGE_TYPES, ABILITIES, CONDITIONS, SECTIONS, WORDINGS,
+    DAMAGE_TYPES, ABILITIES, CONDITIONS, SKILLS, SECTIONS, WORDINGS,
     VERSATILE_WORDING,
     avgDamage, diceText, diceNotation, isAttack, sectionOf, kindAllowed, actionWarnings, multiattackWarnings, lairWarnings, parseInline,
     wordingOf,

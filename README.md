@@ -32,11 +32,18 @@ Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.js
    - **Saving Throw.** Breath weapons and auras: DC, who it targets, what happens on a failure, and what happens on a success. It can also have **+ Healing**.
    - **Spellcasting.** Pick the ability, save DC and spell attack bonus, then add a line for each frequency ("At Will", "1/Day Each", …) and type the spells separated by commas. Each spell is wrapped as `[spell]Fireball[/spell]`, and anything in brackets like "(level 4 version)" stays outside the tag.
    - **Text.** Anything else, copied exactly as you type it. In Reactions it also has a **Trigger** box, which gives the 2024 "Trigger: … Response: …" layout.
-   - **Dice in text.** Text descriptions, Trigger and Response, rider text, Miss text, custom Success text, the multiattack's extra text and a custom lair intro can hold clickable dice:
+   - **Dice in text.** Text descriptions, Trigger and Response, rider text, Miss text, custom Success text, the multiattack's extra text and a custom lair intro can hold clickable dice and D&D Beyond tooltips:
      - `{1d4}` gives a plain roll showing "1d4", e.g. "for {1d4} rounds".
      - `{dmg 3d6 Fire}` gives "10 (3d6)" that rolls Fire damage. Type the words "Fire damage" after it yourself. The damage type is optional.
      - `{heal 2d8+4}` gives "13 (2d8 + 4)" that rolls healing.
      - `{+5}` gives a "+5" that rolls 1d20+5 to hit.
+     - D&D Beyond tooltips, for the name in braces:
+       - `{condition Prone}` gives `[condition]Prone[/condition]`.
+       - `{skill Perception}` gives `[skill]Perception[/skill]`.
+       - `{spell Fireball}` gives `[spell]Fireball[/spell]`. Anything in brackets after the name, like "(level 4 version)", stays outside the tag.
+       - `{action Hide}` gives `[action]Hide[/action]`.
+       - `{sense Darkvision}` gives `[sense]Darkvision[/sense]`.
+       - Conditions and skills are checked against the 5e lists and get their proper capitals, so `{skill sleight of hand}` gives "Sleight of Hand". An unknown condition or skill gets a warning, like an unknown damage type. Actions, senses and spells are pasted as you typed them.
      - `\{` types a plain brace. Anything in braces that the app can't read is pasted as you typed it, and a warning appears on the card.
    - **Usage** adds a clickable *(Recharge 5-6)* that rolls a d6, *(3/Day)*, *(Costs 2 Actions)* for legendary actions, or your own tag after the name.
 3. **Multiattack.** Tick it, then set how many times each attack is used. Only attacks in the Actions section can be picked.

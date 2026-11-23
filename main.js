@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, dialog, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, ClipboardItem, dialog, nativeTheme, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -49,8 +49,10 @@ ipcMain.handle('library:save', (_e, data) => {
   return true;
 });
 
-ipcMain.handle('clipboard:write', (_e, { text, html }) => {
-  clipboard.write({ text, html });
+// Electron's clipboard is the async W3C-style API: write() takes ClipboardItems and returns a
+// promise. Awaiting it means a failed write reaches the app as "Copy failed", not a false "Copied".
+ipcMain.handle('clipboard:write', async (_e, { text, html }) => {
+  await clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })]);
   return true;
 });
 

@@ -83,4 +83,4 @@ npm run dist     # build dist/StatblockBuilder.exe
 - `PRODUCT.md` is the product brief.
 - `main.js` and `preload.js` are the Electron shell.
 
-If `npm start` says Electron "failed to install correctly", unzip `%LOCALAPPDATA%\electron\Cache\…\electron-v*-win32-x64.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron.exe`.
+The first `npm start` downloads Electron itself, because `npm install` no longer does. If it says Electron "failed to install correctly", delete `node_modules/electron`, run `npm install`, then run `npx install-electron --no`. If the download is blocked, unzip `%LOCALAPPDATA%\electron\Cache\…\electron-v*-win32-x64.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron.exe`.

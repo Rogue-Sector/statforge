@@ -2,6 +2,8 @@
 
 A small Windows app for building D&D monster actions with D&D Beyond's clickable dice (`[rollable]…[/rollable]`). Fill in the numbers, then copy and paste the result into D&D Beyond or AboveVTT.
 
+**Screenshot:** _coming soon_
+
 ## Running it
 
 Double-click `StatblockBuilder.exe`. There's nothing to install, and it works offline.

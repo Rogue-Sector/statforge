@@ -1,16 +1,28 @@
 # Statblock Builder
 
-A small Windows app for building D&D monster actions with D&D Beyond's clickable dice (`[rollable]…[/rollable]`). Fill in the numbers, then copy and paste the result into D&D Beyond or AboveVTT.
+A small tool for building D&D monster actions with D&D Beyond's clickable dice (`[rollable]…[/rollable]`). Fill in the numbers, then copy and paste the result into D&D Beyond or AboveVTT. Nothing leaves your browser.
 
 **Screenshot:** _coming soon_
 
 ## Running it
 
-Double-click `StatblockBuilder.exe`. There's nothing to install, and it works offline.
+### In your browser
+
+Statblock Builder is a static site in `src/` with no build step and no network calls — host `src/` on any static host (GitHub Pages, Cloudflare Pages, Netlify, etc.) or serve it locally:
+
+```bash
+npx serve src
+```
+
+Your monsters save automatically in your browser's `localStorage`. Use **Export** to back them up or move them between browsers.
+
+### Offline Windows app (optional)
+
+Double-click `StatblockBuilder.exe` (built with `npm run dist`). There's nothing to install, and it works offline.
 
 The app isn't code-signed, so the first time you run it Windows may show **"Windows protected your PC"**. Click **More info → Run anyway**.
 
-Your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.json`.
+In the desktop app, your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.json`.
 
 ## Using it
 
@@ -86,3 +98,7 @@ npm run dist     # build dist/StatblockBuilder.exe
 - `main.js` and `preload.js` are the Electron shell.
 
 The first `npm start` downloads Electron itself, because `npm install` no longer does. If it says Electron "failed to install correctly", delete `node_modules/electron`, run `npm install`, then run `npx install-electron --no`. If the download is blocked, unzip `%LOCALAPPDATA%\electron\Cache\…\electron-v*-win32-x64.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron.exe`.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Not affiliated with Wizards of the Coast or D&D Beyond.

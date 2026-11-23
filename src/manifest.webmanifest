@@ -1,0 +1,21 @@
+{
+  "name": "Statblock Builder",
+  "short_name": "Statblock Builder",
+  "description": "Build D&D Beyond and AboveVTT rollable monster actions and copy them straight into your statblock.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f1626",
+  "theme_color": "#0b111e",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

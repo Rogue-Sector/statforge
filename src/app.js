@@ -48,6 +48,7 @@
         if (!file) return resolve(null);
         file.text().then((t) => resolve(JSON.parse(t))).catch(reject);
       };
+      input.oncancel = () => resolve(null);
       input.click();
     });
   }
@@ -105,44 +106,60 @@
     };
   }
 
-  function normalizeAction(a) {
-    const def = newAction(a.kind || 'melee');
+  const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+  function normalizeAction(raw) {
+    const a = isObj(raw) ? raw : {};
+    const def = newAction(typeof a.kind === 'string' ? a.kind : 'melee');
+    const rawSpells = isObj(a.spells) ? a.spells : {};
+    const spells = {
+      ...def.spells,
+      ...rawSpells,
+      groups: Array.isArray(rawSpells.groups)
+        ? rawSpells.groups.filter(isObj).map((g) => ({
+          label: typeof g.label === 'string' ? g.label : '',
+          spells: typeof g.spells === 'string' ? g.spells : '',
+        }))
+        : def.spells.groups,
+    };
     return {
       ...def,
       ...a,
-      id: a.id || def.id,
-      usage: { ...def.usage, ...(a.usage || {}) },
-      damage: a.damage === undefined ? def.damage : a.damage,
-      extraDamage: Array.isArray(a.extraDamage) ? a.extraDamage : [],
-      save: { ...def.save, ...(a.save || {}) },
-      condition: { ...def.condition, ...(a.condition || {}) },
-      spells: { ...def.spells, ...(a.spells || {}) },
-      healing: { ...def.healing, ...(a.healing || {}) },
-      versatile: { ...def.versatile, ...(a.versatile || {}) },
+      id: typeof a.id === 'string' && a.id ? a.id : def.id,
+      usage: { ...def.usage, ...(isObj(a.usage) ? a.usage : {}) },
+      damage: a.damage === undefined ? def.damage : (isObj(a.damage) ? a.damage : null),
+      extraDamage: Array.isArray(a.extraDamage) ? a.extraDamage.filter(isObj) : [],
+      save: { ...def.save, ...(isObj(a.save) ? a.save : {}) },
+      condition: { ...def.condition, ...(isObj(a.condition) ? a.condition : {}) },
+      spells,
+      healing: { ...def.healing, ...(isObj(a.healing) ? a.healing : {}) },
+      versatile: { ...def.versatile, ...(isObj(a.versatile) ? a.versatile : {}) },
     };
   }
 
-  function normalizeMonster(m) {
-    const multiattack = { enabled: false, subject: '', counts: {}, tail: '', ...(m.multiattack || {}) };
+  function normalizeMonster(raw) {
+    const m = isObj(raw) ? raw : {};
+    const rawMa = isObj(m.multiattack) ? m.multiattack : {};
+    const multiattack = { enabled: false, subject: '', tail: '', ...rawMa, counts: isObj(rawMa.counts) ? { ...rawMa.counts } : {} };
     // "Creature is called" used to live on the multiattack; it now belongs to the whole monster.
-    const subject = m.subject != null ? m.subject : multiattack.subject;
+    const subject = typeof m.subject === 'string' ? m.subject : (typeof multiattack.subject === 'string' ? multiattack.subject : '');
     multiattack.subject = '';
     // The 2024/2014 switch used to be legendary.style and only changed the legendary intro. It is
     // now the monster's wording for every section; an old monster keeps the style it had.
-    const legendary = { uses: 3, lairUses: 0, ...(m.legendary || {}) };
+    const legendary = { uses: 3, lairUses: 0, ...(isObj(m.legendary) ? m.legendary : {}) };
     const wording = F.wordingOf(m);
     delete legendary.style;
     return {
-      id: m.id || uid('m'),
-      name: m.name || 'New Monster',
-      subject: subject || '',
+      id: typeof m.id === 'string' && m.id ? m.id : uid('m'),
+      name: typeof m.name === 'string' && m.name ? m.name : 'New Monster',
+      subject,
       wording,
       multiattack,
       legendary,
-      lair: { initiative: 20, noRepeat: true, text: '', ...(m.lair || {}) },
-      actions: (m.actions || []).map(normalizeAction),
+      lair: { initiative: 20, noRepeat: true, text: '', ...(isObj(m.lair) ? m.lair : {}) },
+      actions: Array.isArray(m.actions) ? m.actions.filter(isObj).map(normalizeAction) : [],
       // Which sections were copied, as hashes of their exact output: { [sectionKey]: { hash, at, actions } }.
-      copied: m.copied && typeof m.copied === 'object' && !Array.isArray(m.copied) ? m.copied : {},
+      copied: isObj(m.copied) ? m.copied : {},
       // Library-only details. Display only: never part of the copied text.
       folder: typeof m.folder === 'string' ? m.folder : '',
       meta: { size: '', type: '', cr: '', ...pickStrings(m.meta, ['size', 'type', 'cr']) },
@@ -1338,7 +1355,8 @@
       return toast('That file isn’t valid JSON.', true);
     }
     if (!data) return;
-    const raw = Array.isArray(data) ? data : Array.isArray(data.monsters) ? data.monsters : data.actions ? [data] : [];
+    const candidates = Array.isArray(data) ? data : isObj(data) && Array.isArray(data.monsters) ? data.monsters : isObj(data) && Array.isArray(data.actions) ? [data] : [];
+    const raw = candidates.filter((r) => isObj(r) && (typeof r.name === 'string' || Array.isArray(r.actions)));
     if (!raw.length) return toast('No monsters found in that file.', true);
     const ids = new Set(lib.monsters.map((m) => m.id));
     const added = raw.map((r) => {
@@ -1479,7 +1497,7 @@
         settings: { markdownBold: false, ...(saved.settings || {}) },
         currentId: saved.currentId,
         folders: Array.isArray(saved.folders) ? saved.folders.filter((f) => typeof f === 'string' && f.trim()) : [],
-        monsters: saved.monsters.map(normalizeMonster),
+        monsters: saved.monsters.filter(isObj).map(normalizeMonster),
       };
     } else {
       const example = normalizeMonster(wyvernRider());

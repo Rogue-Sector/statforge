@@ -230,3 +230,57 @@ test('copy status tracks the Lair Actions section, and names unnamed entries by 
   assert.equal(L.blockName({ id: 'x', tokens: [{ t: 'text', v: 'Quake.' }] }), 'Quake');
   assert.equal(L.blockName({ id: 'x', tokens: [{ t: 'text', v: '' }] }), 'a lair action');
 });
+
+// ---- milestone checkpoints ----
+
+test('recordCheckpoint stores, deduplicates, replaces copy labels, and trims globally', () => {
+  const m = wyvernRider();
+  let store = {};
+  store = L.recordCheckpoint(store, m, { kind: 'session', label: 'Before today’s edits', at: 1000 });
+  assert.equal(L.listCheckpoints(store, m.id).length, 1);
+
+  // Same content + same kind updates timestamp instead of duplicating.
+  store = L.recordCheckpoint(store, m, { kind: 'session', label: 'Before today’s edits', at: 2000 });
+  assert.equal(L.listCheckpoints(store, m.id).length, 1);
+  assert.equal(L.listCheckpoints(store, m.id)[0].at, 2000);
+
+  // Changing copied metadata alone keeps the same content hash.
+  const mCopied = { ...m, copied: { actions: { hash: 'abc', at: 2500, actions: {} } } };
+  assert.equal(L.monsterContentHash(m), L.monsterContentHash(mCopied));
+
+  // Copy checkpoint replaces prior copy checkpoint with the same label.
+  store = L.recordCheckpoint(store, mCopied, { kind: 'copy', label: 'Last copied · Actions', at: 3000 });
+  assert.equal(L.listCheckpoints(store, m.id).length, 2);
+  const mEdited = JSON.parse(JSON.stringify(m));
+  mEdited.actions[0].toHit = 12;
+  store = L.recordCheckpoint(store, mEdited, { kind: 'copy', label: 'Last copied · Actions', at: 4000 });
+  assert.equal(L.listCheckpoints(store, m.id).length, 2);
+  assert.equal(L.listCheckpoints(store, m.id)[0].monster.actions[0].toHit, 12);
+
+  // Global cap drops oldest entries across monsters.
+  const other = { ...JSON.parse(JSON.stringify(m)), id: 'm-other' };
+  store = L.recordCheckpoint(store, other, { kind: 'import', label: 'Before import', at: 5000, maxTotal: 2 });
+  assert.equal(L.listCheckpoints(store, 'm-other').length, 1);
+  assert.equal(L.listCheckpoints(store, m.id).length, 1);
+  assert.equal(L.checkpointSummary(m), '3 actions · Bite, Sting, Halberd');
+});
+
+// ---- reusable ability library ----
+
+test('starterTemplates and searchAbilities find by name, damage type, condition and origin', () => {
+  const starters = L.starterTemplates();
+  assert.ok(starters.length >= 6);
+  // Every starter formats cleanly with zero warnings.
+  for (const tpl of starters) {
+    assert.deepEqual(F.actionWarnings(tpl.action), [], tpl.name);
+    assert.ok(F.toPlain(F.formatAction(tpl.action)).length > 0, tpl.name);
+  }
+  const pool = [
+    ...starters,
+    { id: 'u-1', name: 'Sting', origin: 'Wyvern Rider', action: wyvernRider().actions[1] },
+  ];
+  assert.equal(L.searchAbilities(pool, 'breath')[0].item.id, 'tpl-breath');
+  assert.ok(L.searchAbilities(pool, 'wyvern').some((r) => r.item.id === 'u-1'));
+  assert.ok(L.searchAbilities(pool, 'poison').some((r) => r.item.id === 'tpl-poison-bite'));
+  assert.ok(L.searchAbilities(pool, 'grappled').some((r) => r.item.id === 'tpl-grapple-slam'));
+});

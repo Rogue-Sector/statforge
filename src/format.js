@@ -32,8 +32,14 @@
     ranged: 'Ranged Weapon Attack:',
     both: 'Melee or Ranged Weapon Attack:',
   };
+  const KINDS_2014_SPELL = {
+    melee: 'Melee Spell Attack:',
+    ranged: 'Ranged Spell Attack:',
+    both: 'Melee or Ranged Spell Attack:',
+  };
   // Statblock wording: the 2024 rules ("Melee Attack Roll:", "Failure:") or 2014 ("Melee Weapon Attack:").
   const WORDINGS = ['2024', '2014'];
+  const SPELL_EDITIONS = ['auto', '2024', '2014', 'plain'];
   const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   const int = (v, fallback = 0) => {
@@ -131,10 +137,12 @@
 
   const diceOf = (m) => ({ count: int(m[1]), die: int(m[2]), mod: m[3] ? int(`${m[3]}${m[4]}`) : 0 });
 
-  const TAG_RE = /^(action|skill|sense|condition|spell)\s+(\S.*)$/i;
+  const TAG_RE = /^(action|skill|sense|condition|spells|spell14|spell)\s+(\S.*)$/i;
+
+  const spellTagFor = (wording) => (wording === '2014' ? 'spell' : 'spells');
 
   /** "{condition prone}" body to a tag token, or a reason string. Checked names get their proper case. */
-  function inlineTag(kind, rawName) {
+  function inlineTag(kind, rawName, wording = '2024') {
     const name = rawName.replace(/\s+/g, ' ');
     const known = (list) => list.find((x) => x.toLowerCase() === name.toLowerCase());
     switch (kind.toLowerCase()) {
@@ -146,17 +154,19 @@
         const sk = known(SKILLS);
         return sk ? [{ t: 'skill', v: sk }] : `“${name}” isn’t a skill`;
       }
-      case 'spell': return spellTokens(name);
+      case 'spell': return spellTokens(name, spellTagFor(wording));
+      case 'spells': return spellTokens(name, 'spells');
+      case 'spell14': return spellTokens(name, 'spell');
       case 'action': return [{ t: 'action', v: name }];
       default: return [{ t: 'sense', v: name }];
     }
   }
 
   /** One "{…}" body to tokens, or a reason string when it can't be read. */
-  function inlineRoll(body, actionName) {
+  function inlineRoll(body, actionName, wording = '2024') {
     const inner = body.trim();
     const tag = TAG_RE.exec(inner);
-    if (tag) return inlineTag(tag[1], tag[2]);
+    if (tag) return inlineTag(tag[1], tag[2], wording);
     const hit = /^([+-])\s*(\d+)$/.exec(inner);
     if (hit) return toHitTokens(int(`${hit[1]}${hit[2]}`), actionName);
     for (const [re, kind] of INLINE_FORMS) {
@@ -182,7 +192,8 @@
    * Free text with inline dice to tokens. Returns { tokens, errors } where errors are
    * readable strings; text that can't be parsed is kept exactly as typed.
    */
-  function parseInline(str, actionName) {
+  function parseInline(str, actionName, opts = {}) {
+    const wording = opts.wording === '2014' ? '2014' : '2024';
     const src = String(str ?? '');
     const tokens = [], errors = [];
     let buf = '';
@@ -198,7 +209,7 @@
         errors.push('A “{” has no closing “}”. Type \\{ for a literal brace.');
         continue;
       }
-      const result = inlineRoll(m[1], actionName);
+      const result = inlineRoll(m[1], actionName, wording);
       if (typeof result === 'string') {
         buf += m[0];
         errors.push(`Can’t read ${m[0]}: ${result}. It will be pasted as plain text.`);
@@ -212,7 +223,7 @@
     return { tokens, errors };
   }
 
-  const inline = (str, actionName) => parseInline(str, actionName).tokens;
+  const inline = (str, actionName, wording = '2024') => parseInline(str, actionName, { wording }).tokens;
 
   function conditionTokens(cond, lead) {
     const out = [text(lead), { t: 'cond', v: cond.name }, text(' condition')];
@@ -248,7 +259,7 @@
   /** "regains 13 (2d8 + 4) Hit Points" ("hit points" in 2014 wording), or the custom wording, without the subject. */
   function healTokens(hl, name, wording = '2024') {
     const custom = clean(hl.text);
-    if (custom) return inline(custom, name);
+    if (custom) return inline(custom, name, wording);
     const hp = wording === '2014' ? 'hit points' : 'Hit Points';
     if (!hasDice(hl)) return [text(`regains ${avgDamage(hl)} ${hp}`)];
     return [
@@ -294,7 +305,7 @@
 
     const rider = clean(action.rider);
     if (rider) {
-      const r = inline(rider, name);
+      const r = inline(rider, name, wording);
       if (!out.length) out.push(...r);
       else if (/^[,;:.]/.test(rider)) out.push(...r);
       else if (/^[A-Z]/.test(rider)) { endSentence(out); out.push(text(' '), ...r); }
@@ -425,7 +436,7 @@
     }
     endSentence(out);
     if (mode === 'custom') {
-      out.push(text(' On a successful save, '), ...continueSentence(inline(successText, name)));
+      out.push(text(' On a successful save, '), ...continueSentence(inline(successText, name, '2014')));
       endSentence(out);
     }
     return out;
@@ -469,24 +480,47 @@
     ];
   }
 
-  /** "Fireball (level 4 version)" -> [spell]Fireball[/spell] (level 4 version) */
-  function spellTokens(entry) {
+  /**
+   * "Fireball (level 4 version)" -> [spells]Fireball[/spells] (level 4 version) (2024)
+   * or [spell]Fireball[/spell] (2014). Quoted names like "Shadow Lash" stay plain text
+   * for homebrew spells that D&D Beyond tooltips can't resolve.
+   */
+  function spellTokens(entry, spellTag = 'spells') {
     const m = /^(.*?)(\s*\(.*\))$/.exec(entry);
-    return m && m[1] ? [{ t: 'spell', v: m[1] }, text(m[2])] : [{ t: 'spell', v: entry }];
+    const base = m && m[1] ? m[1].trim() : entry.trim();
+    const tail = m && m[1] ? m[2] : '';
+    const quoted = /^["“](.+)["”]$/.exec(base);
+    if (spellTag === 'plain' || quoted) {
+      const name = quoted ? quoted[1].trim() : base;
+      return tail ? [text(`${name}${tail}`)] : [text(name)];
+    }
+    const tag = spellTag === 'spell' ? 'spell' : 'spells';
+    return tail ? [{ t: 'spell', v: base, tag }, text(tail)] : [{ t: 'spell', v: base, tag }];
+  }
+
+  function spellEditionTag(edition, wording) {
+    if (edition === 'plain') return 'plain';
+    if (edition === '2014') return 'spell';
+    if (edition === '2024') return 'spells';
+    return spellTagFor(wording);
   }
 
   function spellcastingTokens(a, ctx) {
     const s = a.spells || {};
     const components = clean(s.components);
-    const attack = s.hasAttack !== false ? `, ${signed(int(s.attack))} to hit with spell attacks` : '';
-    const out = [text(` ${ctx.subject} casts one of the following spells, ${components ? `${components} and ` : ''}using ${s.ability || 'Intelligence'} as the spellcasting ability (spell save DC ${int(s.dc, 10)}${attack}):`)];
+    const spellTag = spellEditionTag(s.edition, ctx.wording);
+    const out = [text(` ${ctx.subject} casts one of the following spells, ${components ? `${components} and ` : ''}using ${s.ability || 'Intelligence'} as the spellcasting ability (spell save DC ${int(s.dc, 10)}`)];
+    if (s.hasAttack !== false) {
+      out.push(text(', '), ...toHitTokens(s.attack, ctx.name || 'Spellcasting'), text(' to hit with spell attacks'));
+    }
+    out.push(text('):'));
     for (const g of s.groups || []) {
       const spells = String(g.spells || '').split(',').map((x) => x.trim()).filter(Boolean);
       if (!spells.length) continue;
       out.push({ t: 'br', v: '\n' }, { t: 'label', v: `${clean(g.label) || 'At Will'}:` }, text(' '));
       spells.forEach((sp, i) => {
         if (i > 0) out.push(text(', '));
-        out.push(...spellTokens(sp));
+        out.push(...spellTokens(sp, spellTag));
       });
     }
     return out;
@@ -518,7 +552,7 @@
     const subject = ctx.subject || 'The creature';
 
     if (a.kind === 'spells') {
-      tokens.push(...spellcastingTokens(a, { subject }));
+      tokens.push(...spellcastingTokens(a, { subject, wording, name }));
       return tokens;
     }
 
@@ -540,7 +574,7 @@
       const success = a.success || 'half';
       if (success === 'half') tokens.push(text(' '), { t: 'label', v: 'Success:' }, text(' Half damage.'));
       else if (success === 'custom' && clean(a.successText)) {
-        tokens.push(text(' '), { t: 'label', v: 'Success:' }, text(' '), ...inline(clean(a.successText), name));
+        tokens.push(text(' '), { t: 'label', v: 'Success:' }, text(' '), ...inline(clean(a.successText), name, wording));
         endSentence(tokens);
       }
       return tokens;
@@ -551,12 +585,12 @@
       const body = clean(a.description);
       if (trigger) {
         // 2024 reaction layout
-        tokens.push(text(' '), { t: 'label', v: 'Trigger:' }, text(' '), ...inline(trigger, name));
+        tokens.push(text(' '), { t: 'label', v: 'Trigger:' }, text(' '), ...inline(trigger, name, wording));
         endSentence(tokens);
-        tokens.push(text(' '), { t: 'label', v: 'Response:' }, text(' '), ...inline(body || 'No effect', name));
+        tokens.push(text(' '), { t: 'label', v: 'Response:' }, text(' '), ...inline(body || 'No effect', name, wording));
         endSentence(tokens);
       } else if (body) {
-        tokens.push(text(' '), ...inline(body, name));
+        tokens.push(text(' '), ...inline(body, name, wording));
       }
       return tokens;
     }
@@ -564,7 +598,8 @@
     // "Hit or Miss:" when the effect happens either way; an optional "Miss:" sentence follows.
     const hitLabel = a.hitOrMiss ? 'Hit or Miss:' : 'Hit:';
     if (wording === '2014') {
-      tokens.push(text(' '), { t: 'label', v: KINDS_2014[a.kind] || KINDS_2014.melee }, text(' '));
+      const kindMap = a.attackSource === 'spell' ? KINDS_2014_SPELL : KINDS_2014;
+      tokens.push(text(' '), { t: 'label', v: kindMap[a.kind] || kindMap.melee }, text(' '));
       tokens.push(...toHitTokens(a.toHit, name));
       tokens.push(text(` to hit, ${rangeText(a)}, one target. `), { t: 'label', v: hitLabel }, text(' '));
       tokens.push(...attackEffect2014(a, name, subject));
@@ -577,7 +612,7 @@
     endSentence(tokens);
     const miss = clean(a.miss);
     if (miss) {
-      tokens.push(text(' '), { t: 'label', v: 'Miss:' }, text(' '), ...inline(miss, name));
+      tokens.push(text(' '), { t: 'label', v: 'Miss:' }, text(' '), ...inline(miss, name, wording));
       endSentence(tokens);
     }
     return tokens;
@@ -675,7 +710,7 @@
     if (!items.length && !tail) return null;
     const tokens = [{ t: 'name', v: 'Multiattack.' }];
     if (items.length) tokens.push(text(` ${subjectOf(monster)} makes ${joinList(items)}.`));
-    if (tail) { tokens.push(text(' '), ...inline(tail, 'Multiattack')); endSentence(tokens); }
+    if (tail) { tokens.push(text(' '), ...inline(tail, 'Multiattack', wordingOf(monster))); endSentence(tokens); }
     return tokens;
   }
 
@@ -701,7 +736,7 @@
   function formatLairIntro(monster) {
     const l = monster.lair || {};
     const custom = clean(l.text);
-    if (custom) return inline(custom, 'Lair Actions');
+    if (custom) return inline(custom, 'Lair Actions', wordingOf(monster));
     const it = midSentence(subjectOf(monster));
     const count = Math.min(Math.max(int(l.initiative, 20), 1), 30);
     const repeat = l.noRepeat !== false ? `; ${it} can’t use the same effect two rounds in a row` : '';
@@ -775,12 +810,20 @@
 
   // ---- renderers --------------------------------------------------------
 
+  function tagOf(tk) {
+    if (tk.t === 'spell') return tk.tag || 'spell';
+    return TAGS[tk.t] || null;
+  }
+
   function toPlain(tokens, opts = {}) {
     return tokens.map((tk) => {
       switch (tk.t) {
         case 'name': return opts.markdownBold ? `**${tk.v}**` : tk.v;
         case 'roll': return `[rollable]${tk.display};${tk.json}[/rollable]`;
-        default: return TAGS[tk.t] ? `[${TAGS[tk.t]}]${tk.v}[/${TAGS[tk.t]}]` : tk.v;
+        default: {
+          const tag = tagOf(tk);
+          return tag ? `[${tag}]${tk.v}[/${tag}]` : tk.v;
+        }
       }
     }).join('');
   }
@@ -796,7 +839,10 @@
         case 'label': return `<em>${escapeHtml(tk.v)}</em>`;
         case 'roll': return escapeHtml(`[rollable]${tk.display};${tk.json}[/rollable]`);
         case 'br': return '<br>';
-        default: return escapeHtml(TAGS[tk.t] ? `[${TAGS[tk.t]}]${tk.v}[/${TAGS[tk.t]}]` : tk.v);
+        default: {
+          const tag = tagOf(tk);
+          return escapeHtml(tag ? `[${tag}]${tk.v}[/${tag}]` : tk.v);
+        }
       }
     }).join('');
     return `<p>${body}</p>`;
@@ -827,7 +873,7 @@
   }
 
   return {
-    DAMAGE_TYPES, ABILITIES, CONDITIONS, SKILLS, SECTIONS, WORDINGS,
+    DAMAGE_TYPES, ABILITIES, CONDITIONS, SKILLS, SECTIONS, WORDINGS, SPELL_EDITIONS,
     VERSATILE_WORDING,
     avgDamage, diceText, diceNotation, isAttack, sectionOf, kindAllowed, actionWarnings, multiattackWarnings, lairWarnings, parseInline,
     wordingOf,

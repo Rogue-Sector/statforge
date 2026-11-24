@@ -3,6 +3,7 @@
 
   const F = window.StatblockFormat;
   const L = window.StatblockLibrary;
+  const D = window.StatblockDDB;
   const { wyvernRider } = window.StatblockExample;
   const $ = (sel) => document.querySelector(sel);
 
@@ -70,6 +71,7 @@
       id: uid('a'),
       name,
       kind,
+      attackSource: 'weapon',
       section,
       usage: { type: isSave && section !== 'traits' && section !== 'lair' ? 'recharge' : 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
       toHit: 5,
@@ -94,6 +96,7 @@
         dc: 13,
         attack: 5,
         hasAttack: true,
+        edition: 'auto',
         components: 'requiring no Material components',
         groups: [
           { label: 'At Will', spells: 'Detect Magic, Mage Hand' },
@@ -116,6 +119,7 @@
     const spells = {
       ...def.spells,
       ...rawSpells,
+      edition: F.SPELL_EDITIONS.includes(rawSpells.edition) ? rawSpells.edition : 'auto',
       groups: Array.isArray(rawSpells.groups)
         ? rawSpells.groups.filter(isObj).map((g) => ({
           label: typeof g.label === 'string' ? g.label : '',
@@ -126,6 +130,7 @@
     return {
       ...def,
       ...a,
+      attackSource: a.attackSource === 'spell' ? 'spell' : 'weapon',
       id: typeof a.id === 'string' && a.id ? a.id : def.id,
       usage: { ...def.usage, ...(isObj(a.usage) ? a.usage : {}) },
       damage: a.damage === undefined ? def.damage : (isObj(a.damage) ? a.damage : null),
@@ -189,7 +194,8 @@
   }
 
   // folders: empty folders the user made with "+ New folder". Folders with monsters come from monster.folder.
-  let lib = { version: 1, settings: { markdownBold: false }, currentId: null, folders: [], monsters: [] };
+  // snippets: user-saved reusable actions/traits, exported and imported with the library.
+  let lib = { version: 1, settings: { markdownBold: false }, currentId: null, folders: [], monsters: [], snippets: [] };
   let view = 'preview';
   let query = '';
   let live = []; // refreshers registered by the editor, re-run on every edit
@@ -200,6 +206,128 @@
   const outputOpts = () => ({ markdownBold: !!lib.settings.markdownBold });
   const sectionMeta = (key) => F.SECTIONS.find((s) => s.key === key) || F.SECTIONS[1];
   const inSection = (m, key) => m.actions.filter((a) => F.sectionOf(a) === key);
+
+  // ---------- undo / redo ----------
+
+  const MAX_UNDO = 40;
+  const undoStack = [];
+  const redoStack = [];
+  let baselineSnap = null;
+  let typingBurstAt = 0;
+  let baselineTimer = null;
+
+  const snapState = (label = '') => ({ lib: clone(lib), tab: { ...ui.tab }, open: { ...ui.open }, label });
+
+  function resetBaseline() {
+    clearTimeout(baselineTimer);
+    baselineTimer = null;
+    baselineSnap = snapState('edit');
+  }
+
+  function renderUndoButtons() {
+    const u = $('#undo-btn'), r = $('#redo-btn');
+    if (!u || !r) return;
+    const topU = undoStack[undoStack.length - 1];
+    const topR = redoStack[redoStack.length - 1];
+    u.disabled = !topU;
+    r.disabled = !topR;
+    u.title = topU && topU.label ? `Undo ${topU.label} (Ctrl+Z)` : 'Undo (Ctrl+Z)';
+    r.title = topR && topR.label ? `Redo ${topR.label} (Ctrl+Y)` : 'Redo (Ctrl+Y)';
+  }
+
+  /** Call BEFORE mutating `lib` for a discrete change (add, delete, move, import, etc.). */
+  function captureUndo(label = 'change') {
+    undoStack.push(snapState(label));
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack.length = 0;
+    typingBurstAt = 0;
+    renderUndoButtons();
+  }
+
+  /** Groups rapid typing/stepper updates into one undo step using the pre-burst baseline. */
+  function captureTypingUndo() {
+    const now = Date.now();
+    if (baselineSnap && now - typingBurstAt > 1200) {
+      undoStack.push({ ...baselineSnap, label: 'edit' });
+      if (undoStack.length > MAX_UNDO) undoStack.shift();
+      redoStack.length = 0;
+      renderUndoButtons();
+    }
+    typingBurstAt = now;
+    clearTimeout(baselineTimer);
+    baselineTimer = setTimeout(() => { baselineSnap = snapState('edit'); }, 900);
+  }
+
+  function applySnapshot(snap) {
+    lib = clone(snap.lib);
+    if (!Array.isArray(lib.snippets)) lib.snippets = [];
+    ui.tab = { ...(snap.tab || {}) };
+    ui.open = { ...(snap.open || {}) };
+    ui.addOpen = false;
+    resetBaseline();
+    renderAll();
+    scheduleSave();
+    renderUndoButtons();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    const snap = undoStack.pop();
+    redoStack.push(snapState(snap.label));
+    applySnapshot(snap);
+    toast(snap.label && snap.label !== 'edit' ? `Undid ${snap.label}.` : 'Undid last change.');
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    const snap = redoStack.pop();
+    undoStack.push(snapState(snap.label));
+    applySnapshot(snap);
+    toast(snap.label && snap.label !== 'edit' ? `Redid ${snap.label}.` : 'Redid change.');
+  }
+
+  // ---------- lightweight milestone checkpoints ----------
+
+  const CHECKPOINTS_KEY = 'stat-forge-checkpoints';
+  let checkpoints = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CHECKPOINTS_KEY));
+      return isObj(parsed) ? parsed : {};
+    } catch { return {}; }
+  })();
+  // Original monster snapshots loaded at session start, for "Before today's edits".
+  const sessionOriginals = new Map();
+  const sessionCaptured = new Set();
+
+  function persistCheckpoints() {
+    try {
+      localStorage.setItem(CHECKPOINTS_KEY, JSON.stringify(checkpoints));
+    } catch {
+      // Storage is tight: trim aggressively so checkpoints never threaten main library saving.
+      try {
+        checkpoints = L.trimCheckpoints(checkpoints, 24);
+        localStorage.setItem(CHECKPOINTS_KEY, JSON.stringify(checkpoints));
+      } catch {
+        try { localStorage.removeItem(CHECKPOINTS_KEY); } catch { /* ignore */ }
+      }
+    }
+  }
+
+  function recordMonsterCheckpoint(m, kind, label) {
+    if (!m || !m.id) return;
+    checkpoints = L.recordCheckpoint(checkpoints, m, { kind, label });
+    persistCheckpoints();
+  }
+
+  function maybeCaptureSessionCheckpoint(m) {
+    if (!m || !m.id || sessionCaptured.has(m.id)) return;
+    const orig = sessionOriginals.get(m.id);
+    if (!orig) return;
+    if (L.monsterContentHash(m) !== L.monsterContentHash(orig)) {
+      sessionCaptured.add(m.id);
+      recordMonsterCheckpoint(orig, 'session', 'Before today’s edits');
+    }
+  }
 
   function tabOf(m) {
     if (ui.tab[m.id]) return ui.tab[m.id];
@@ -252,6 +380,8 @@
 
   /** Call after any value change that doesn't alter the editor's structure. */
   function update() {
+    captureTypingUndo();
+    maybeCaptureSessionCheckpoint(current());
     live.forEach((fn) => fn());
     renderTabs();
     renderOutput();
@@ -272,7 +402,9 @@
 
   /** Call after structural changes (added/removed parts, kind switches). */
   function rerender() {
+    maybeCaptureSessionCheckpoint(current());
     renderAll();
+    resetBaseline();
     scheduleSave();
   }
 
@@ -315,6 +447,13 @@
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
     alert: '<path d="M12 4 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+    bookmark: '<path d="M6 4h12v17l-6-4-6 4z"/>',
+    library: '<path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5l4 1-3 13-4-1z"/>',
+    paste: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-8 8l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 8-8z"/>',
   };
   function icon(name, cls = '') {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -391,12 +530,26 @@
     });
   }
 
-  function seg(options, get, set, { label = '' } = {}) {
-    return h('div', { class: 'seg', role: 'radiogroup', 'aria-label': label || null }, options.map(([value, text]) =>
+  function seg(options, get, set, { label = '', onChange = null } = {}) {
+    const buttons = options.map(([value, text]) =>
       h('button', {
         type: 'button', role: 'radio', class: `seg-btn ${get() === value ? 'is-on' : ''}`, 'aria-checked': String(get() === value),
-        onclick: () => { if (get() !== value) { set(value); rerender(); } },
-      }, text)));
+        onclick: () => {
+          if (get() === value) return;
+          set(value);
+          if (onChange) {
+            buttons.forEach((b, idx) => {
+              const on = options[idx][0] === value;
+              b.classList.toggle('is-on', on);
+              b.setAttribute('aria-checked', String(on));
+            });
+            onChange(value);
+          } else {
+            rerender();
+          }
+        },
+      }, text));
+    return h('div', { class: 'seg', role: 'radiogroup', 'aria-label': label || null }, buttons);
   }
 
   function warnList(getList) {
@@ -533,6 +686,10 @@
   function attackBody(a) {
     const body = [];
     const lead = [field('To hit', stepper(() => a.toHit, (v) => { a.toHit = v; }, { min: -5, max: 30, title: 'to hit bonus', signed: true }))];
+    if (current()?.wording === '2014') {
+      lead.push(h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Attack'),
+        seg([['weapon', 'Weapon'], ['spell', 'Spell']], () => a.attackSource || 'weapon', (v) => { a.attackSource = v; }, { label: 'Attack type' })));
+    }
     if (a.kind !== 'ranged') lead.push(field('Reach', stepper(() => a.reach, (v) => { a.reach = v; }, { min: 5, max: 60, suffix: 'ft.', title: 'reach' })));
     if (a.kind !== 'melee') {
       lead.push(
@@ -627,6 +784,8 @@
 
   function spellsBody(a) {
     const s = a.spells;
+    const wording = current()?.wording || '2024';
+    const autoLabel = wording === '2014' ? 'Match wording (2014 [spell])' : 'Match wording (2024 [spells])';
     const body = [h('div', { class: 'fields' },
       field('Ability', select(['Intelligence', 'Wisdom', 'Charisma'], () => s.ability, (v) => { s.ability = v; }, { title: 'spellcasting ability' })),
       field('Spell save DC', stepper(() => s.dc, (v) => { s.dc = v; }, { min: 1, max: 30, title: 'spell save DC' })),
@@ -634,6 +793,7 @@
         h('div', { class: 'fields', style: 'gap:10px;align-items:center' },
           h('input', { type: 'checkbox', checked: s.hasAttack !== false, 'aria-label': 'Has spell attacks', class: 'check-inline', onchange: (e) => { s.hasAttack = e.target.checked; rerender(); } }),
           s.hasAttack !== false && stepper(() => s.attack, (v) => { s.attack = v; }, { min: -5, max: 30, title: 'spell attack bonus', signed: true }))),
+      field('Spell tooltips', select([['auto', autoLabel], ['2024', '2024 [spells]'], ['2014', '2014 [spell]'], ['plain', 'Plain text (no tags)']], () => s.edition || 'auto', (v) => { s.edition = v; }, { title: 'spell tooltip edition' })),
       field('Components (optional)', textInput(() => s.components, (v) => { s.components = v; }, {
         list: 'components', placeholder: 'requiring no Material components',
       }), 'field-grow'))];
@@ -645,7 +805,7 @@
 
     body.push(group('Spells', null,
       groups,
-      h('p', { class: 'hint' }, 'Separate spells with commas. Anything in brackets, like “(level 4 version)”, stays outside the [spell] tag.'),
+      h('p', { class: 'hint' }, 'Separate spells with commas. Anything in brackets, like “(level 4 version)”, stays outside the tag. Wrap a custom homebrew spell in "quotes" to leave it as plain text.'),
       h('div', { class: 'add-row' },
         addBtn('+ Spell line', () => { s.groups.push({ label: s.groups.length ? `${s.groups.length}/Day Each` : 'At Will', spells: '' }); rerender(); }))));
     return body;
@@ -725,6 +885,7 @@
     const siblings = inSection(m, F.sectionOf(a));
     const pos = siblings.indexOf(a);
     const move = (dir) => {
+      captureUndo(`move “${a.name || 'action'}”`);
       const j = m.actions.indexOf(siblings[pos + dir]);
       [m.actions[index], m.actions[j]] = [m.actions[j], m.actions[index]];
       rerender();
@@ -736,21 +897,26 @@
       textInput(() => a.name, (v) => { a.name = v; }, { class: 'card-name', placeholder: isLair ? 'Name (optional)' : 'Action name', 'aria-label': 'Action name' }),
       h('div', { class: 'card-tools' },
         iconBtn('copy', 'Copy this action', () => copyBlocks([a.id])),
+        iconBtn('bookmark', 'Save to ability library', () => saveActionSnippet(a)),
         iconBtn('up', 'Move up', () => move(-1), { disabled: pos === 0 }),
         iconBtn('down', 'Move down', () => move(1), { disabled: pos === siblings.length - 1 }),
         iconBtn('dup', 'Duplicate', () => {
+          captureUndo(`duplicate “${a.name || 'action'}”`);
           const copy = { ...clone(a), id: uid('a'), name: a.name ? `${a.name} (copy)` : '' };
           m.actions.splice(index + 1, 0, copy);
           ui.open[m.id] = copy.id;
           rerender();
         }),
         iconBtn('trash', 'Delete action', () => {
-          if (!confirm(`Delete ${a.name || 'this action'}?`)) return;
+          const label = a.name || (isLair ? 'lair action' : 'action');
+          captureUndo(`delete “${label}”`);
           m.actions.splice(index, 1);
           delete m.multiattack.counts[a.id];
           rerender();
+          toast(`Deleted “${label}”.`, false, { label: 'Undo', onclick: undo });
         }, { class: 'danger' })),
       select(kinds, () => a.kind, (v) => {
+        captureUndo(`change “${a.name || 'action'}” kind`);
         a.kind = v;
         if (ATTACK_KINDS.includes(v) && !a.damage) a.damage = newDamage();
       }, { structural: true, title: 'kind of action' })));
@@ -863,10 +1029,15 @@
       type: 'button', class: 'add-action', 'aria-expanded': String(ui.addOpen), dataset: { fk: 'add-action' },
       onclick: () => { ui.addOpen = !ui.addOpen; renderEditor(); live.forEach((fn) => fn()); $('.add-action')?.focus(); },
     }, icon('plus'), 'Add action');
+    const bar = h('div', { class: 'add-action-bar' },
+      toggle,
+      h('button', { type: 'button', class: 'btn btn-outline add-secondary', title: 'Insert a saved ability, starter template, or ability from another monster', onclick: () => openAbilityLibraryModal(m, key) }, icon('library'), 'From library'),
+      h('button', { type: 'button', class: 'btn btn-outline add-secondary', title: 'Paste an existing action or trait to turn it into an editable card', onclick: () => openPasteActionModal(m, key) }, icon('paste'), 'Paste action'));
     const kinds = ui.addOpen && h('div', { class: 'add-kinds', role: 'group', 'aria-label': 'Kind of action to add' },
       KIND_LABELS.filter(([k]) => F.kindAllowed(k, key)).map(([kind, label]) => addBtn(label, () => {
         const name = key === 'lair' ? '' : DEFAULT_NAMES[kind]
           || (kind === 'save' ? (key === 'traits' ? 'Aura' : 'Breath Weapon') : ({ reactions: 'Parry', traits: 'Pack Tactics' }[key] || 'Ability'));
+        captureUndo(`add “${name || 'lair action'}”`);
         const a = newAction(kind, name, key);
         m.actions.push(a);
         ui.open[m.id] = a.id;
@@ -875,7 +1046,7 @@
         const input = document.querySelector(`.card[data-id="${a.id}"] .card-name`);
         if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); input.select(); }
       })));
-    return h('div', { class: 'add-action-wrap' }, toggle, kinds);
+    return h('div', { class: 'add-action-wrap' }, bar, kinds);
   }
 
   // ---------- main area ----------
@@ -904,10 +1075,12 @@
       onchange: (e) => { m.folder = e.target.value.trim(); update(); },
     });
 
+    const cpCount = L.listCheckpoints(checkpoints, m.id).length;
     head.replaceChildren(
       h('div', { class: 'monster-head' },
         title,
         h('div', { class: 'head-tools' },
+          iconBtn('history', cpCount ? `Recovery checkpoints (${cpCount})` : 'Recovery checkpoints', () => openCheckpointsModal(m)),
           iconBtn('download', 'Export this monster', () => exportJson(`${slug(m.name)}.json`, { version: 1, monsters: [m] })),
           iconBtn('dup', 'Duplicate monster', () => duplicateMonster(m)),
           iconBtn('trash', 'Delete monster', () => deleteMonster(m), { class: 'danger' }))),
@@ -1167,12 +1340,14 @@
     const ok = await copyOut(s.blocks, F.sectionsToClipboard([s], outputOpts()), `Copied all ${s.box}. Paste them into the ${s.box} box.`);
     if (!ok) return;
     m.copied[key] = L.snapshotSection(s, F.toPlain, outputOpts());
+    recordMonsterCheckpoint(m, 'copy', `Last copied · ${s.box}`);
+    renderHead();
     renderTabs();
     renderOutput();
     scheduleSave();
   }
 
-  function copyAll() {
+  async function copyAll() {
     const m = current();
     if (!m) return;
     const sections = F.formatSections(m);
@@ -1180,17 +1355,25 @@
     const message = sections.length > 1
       ? `Copied everything, with ${sections.map((s) => s.title).join(', ')} headings.`
       : `Copied ${blocks.length} action${blocks.length === 1 ? '' : 's'}.`;
-    copyOut(blocks, F.sectionsToClipboard(sections, outputOpts()), message);
+    const ok = await copyOut(blocks, F.sectionsToClipboard(sections, outputOpts()), message);
+    if (ok) {
+      recordMonsterCheckpoint(m, 'copy', 'Last copied · All sections');
+      renderHead();
+    }
   }
 
   let toastTimer = null;
-  function toast(message, isError = false) {
+  function toast(message, isError = false, action = null) {
     const el = $('#toast');
-    el.replaceChildren(icon(isError ? 'alert' : 'check'), h('span', null, message));
+    const actBtn = action && h('button', {
+      type: 'button', class: 'btn btn-sm toast-btn',
+      onclick: () => { el.classList.remove('show'); clearTimeout(toastTimer); action.onclick(); },
+    }, action.label);
+    el.replaceChildren(icon(isError ? 'alert' : 'check'), h('span', null, message), actBtn);
     el.classList.toggle('error', isError);
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    toastTimer = setTimeout(() => el.classList.remove('show'), action ? 6000 : 2600);
   }
 
   // ---------- library ----------
@@ -1233,6 +1416,7 @@
       const m = lib.monsters.find((x) => x.id === e.dataTransfer.getData('text/x-monster-id'));
       if (!m) return;
       e.preventDefault();
+      captureUndo(`move “${m.name || 'monster'}” to ${g.name}`);
       m.folder = g.key;
       collapsed.delete(key);
       saveCollapsed();
@@ -1262,14 +1446,14 @@
   }
 
   function deleteFolder(g) {
-    const n = g.monsters.length;
-    if (!confirm(`Delete the folder “${g.name}”?${n ? ` Its ${n} monster${n === 1 ? '' : 's'} will move to Unsorted.` : ''}`)) return;
+    captureUndo(`delete folder “${g.name}”`);
     const key = folderKey(g.key);
     lib.monsters.forEach((m) => { if (folderKey(m.folder) === key) m.folder = ''; });
     lib.folders = lib.folders.filter((f) => folderKey(f) !== key);
     collapsed.delete(key);
     saveCollapsed();
     rerender();
+    toast(`Deleted folder “${g.name}”.`, false, { label: 'Undo', onclick: undo });
   }
 
   function renderNewFolder() {
@@ -1323,6 +1507,7 @@
   }
 
   function newMonster(name) {
+    captureUndo('new monster');
     const m = normalizeMonster({ name: typeof name === 'string' && name.trim() ? name.trim() : 'New Monster', actions: [newAction('melee', 'Claw')] });
     lib.monsters.unshift(m);
     query = '';
@@ -1335,6 +1520,7 @@
   }
 
   function duplicateMonster(m) {
+    captureUndo(`duplicate “${m.name || 'monster'}”`);
     const copy = withNewIds(m);
     copy.name = `${m.name} (copy)`;
     lib.monsters.splice(lib.monsters.indexOf(m) + 1, 0, copy);
@@ -1342,11 +1528,35 @@
   }
 
   function deleteMonster(m) {
-    if (!confirm(`Delete ${m.name || 'this monster'}? This can't be undone.`)) return;
+    const label = m.name || 'this monster';
+    captureUndo(`delete “${label}”`);
     const i = lib.monsters.indexOf(m);
     lib.monsters.splice(i, 1);
     const next = lib.monsters[Math.min(i, lib.monsters.length - 1)];
     selectMonster(next ? next.id : null);
+    toast(`Deleted “${label}”.`, false, { label: 'Undo', onclick: undo });
+  }
+
+  function normalizeSnippet(raw) {
+    if (!isObj(raw)) return null;
+    const action = normalizeAction(isObj(raw.action) ? raw.action : raw);
+    return {
+      id: typeof raw.id === 'string' && raw.id ? raw.id : uid('sn'),
+      name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : (action.name || 'Unnamed ability'),
+      savedAt: Number.isFinite(raw.savedAt) ? raw.savedAt : Date.now(),
+      action,
+    };
+  }
+
+  function saveActionSnippet(a) {
+    const cleanCopy = normalizeAction(clone(a));
+    cleanCopy.id = uid('a');
+    const name = cleanCopy.name.trim() || 'Unnamed ability';
+    captureUndo(`save “${name}” to library`);
+    lib.snippets.unshift({ id: uid('sn'), name, savedAt: Date.now(), action: cleanCopy });
+    resetBaseline();
+    scheduleSave();
+    toast(`Saved “${name}” to your ability library.`);
   }
 
   async function importMonsters() {
@@ -1359,20 +1569,370 @@
     if (!data) return;
     const candidates = Array.isArray(data) ? data : isObj(data) && Array.isArray(data.monsters) ? data.monsters : isObj(data) && Array.isArray(data.actions) ? [data] : [];
     const raw = candidates.filter((r) => isObj(r) && (typeof r.name === 'string' || Array.isArray(r.actions)));
-    if (!raw.length) return toast('No monsters found in that file.', true);
+    const rawSnippets = isObj(data) && Array.isArray(data.snippets) ? data.snippets.map(normalizeSnippet).filter(Boolean) : [];
+    if (!raw.length && !rawSnippets.length) return toast('No monsters or abilities found in that file.', true);
+    captureUndo('import');
+    if (current()) recordMonsterCheckpoint(current(), 'import', 'Before import');
     const ids = new Set(lib.monsters.map((m) => m.id));
     const added = raw.map((r) => {
       const m = normalizeMonster(r);
       return ids.has(m.id) ? withNewIds(m) : m;
     });
-    lib.monsters.unshift(...added);
-    selectMonster(added[0].id);
-    toast(`Imported ${added.length} monster${added.length === 1 ? '' : 's'}.`);
+    if (added.length) lib.monsters.unshift(...added);
+    if (rawSnippets.length) {
+      const sIds = new Set(lib.snippets.map((s) => s.id));
+      for (const s of rawSnippets) lib.snippets.push(sIds.has(s.id) ? { ...s, id: uid('sn') } : s);
+    }
+    if (added.length) selectMonster(added[0].id);
+    else rerender();
+    const parts = [];
+    if (added.length) parts.push(`${added.length} monster${added.length === 1 ? '' : 's'}`);
+    if (rawSnippets.length) parts.push(`${rawSnippets.length} saved abilit${rawSnippets.length === 1 ? 'y' : 'ies'}`);
+    toast(`Imported ${parts.join(' and ')}.`, false, { label: 'Undo', onclick: undo });
   }
 
   function exportAll() {
-    if (!lib.monsters.length) return toast('No monsters to export.', true);
-    exportJson('stat-forge-monsters.json', { version: 1, monsters: lib.monsters });
+    if (!lib.monsters.length && !lib.snippets.length) return toast('Nothing to export yet.', true);
+    const payload = { version: 1, monsters: lib.monsters };
+    if (lib.snippets.length) payload.snippets = lib.snippets;
+    exportJson('stat-forge-monsters.json', payload);
+  }
+
+  // ---------- reusable modal dialog ----------
+
+  const modal = { open: false, returnTo: null };
+
+  function openModal({ title, subtitle = '', wide = false, body, focus }) {
+    closeFinder();
+    setDrawer(false);
+    modal.open = true;
+    modal.returnTo = document.activeElement;
+    const host = $('#modal');
+    const box = h('div', { class: `modal-box ${wide ? 'is-wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      h('div', { class: 'modal-head' },
+        h('div', { class: 'modal-title-wrap' },
+          h('h2', { class: 'modal-title' }, title),
+          subtitle && h('p', { class: 'modal-sub' }, subtitle)),
+        iconBtn('x', 'Close', closeModal)),
+      h('div', { class: 'modal-body' }, body));
+    host.replaceChildren(h('div', { class: 'finder-scrim', onclick: closeModal }), box);
+    host.hidden = false;
+    const target = typeof focus === 'function' ? focus(box) : box.querySelector('input, textarea, button');
+    if (target) target.focus();
+  }
+
+  function closeModal() {
+    if (!modal.open) return;
+    modal.open = false;
+    const host = $('#modal');
+    host.hidden = true;
+    host.replaceChildren();
+    const back = modal.returnTo;
+    if (back && document.contains(back)) back.focus();
+  }
+
+  // ---------- lightweight milestone checkpoints modal ----------
+
+  function openCheckpointsModal(m) {
+    const renderBody = () => {
+      const list = L.listCheckpoints(checkpoints, m.id);
+      if (!list.length) {
+        return h('div', { class: 'cp-empty' },
+          h('p', null, 'No recovery checkpoints for this monster yet.'),
+          h('p', { class: 'hint' }, 'Stat Forge automatically keeps milestone snapshots in this browser: before your first edit of a session, whenever you copy a section for D&D Beyond, and before imports. Checkpoints stay local and never bloat exported JSON files.'));
+      }
+      return h('div', { class: 'cp-wrap' },
+        h('p', { class: 'hint' }, 'Milestone snapshots are kept locally in this browser (never exported). Restoring one can always be undone with Ctrl+Z.'),
+        h('ul', { class: 'cp-list' }, list.map((cp) => {
+          const same = L.monsterContentHash(m) === cp.hash;
+          return h('li', { class: 'cp-item' },
+            h('div', { class: 'cp-info' },
+              h('div', { class: 'cp-head' },
+                h('span', { class: `cp-badge is-${cp.kind}` }, cp.label),
+                h('span', { class: 'cp-when' }, L.relativeTime(cp.at)),
+                same && h('span', { class: 'cp-same' }, 'matches current')),
+              h('div', { class: 'cp-summary' }, L.checkpointSummary(cp.monster))),
+            h('button', {
+              type: 'button', class: 'btn btn-sm', disabled: same,
+              onclick: () => {
+                captureUndo(`restore “${cp.label}”`);
+                const idx = lib.monsters.findIndex((x) => x.id === m.id);
+                if (idx === -1) return;
+                const restored = normalizeMonster(clone(cp.monster));
+                restored.id = m.id;
+                lib.monsters[idx] = restored;
+                ui.open[m.id] = null;
+                closeModal();
+                rerender();
+                toast(`Restored “${cp.label}”.`, false, { label: 'Undo', onclick: undo });
+              },
+            }, 'Restore'));
+        })));
+    };
+    openModal({
+      title: `Checkpoints · ${m.name || 'Unnamed Monster'}`,
+      subtitle: 'Restore a previous copy or pre-edit milestone',
+      body: renderBody(),
+    });
+  }
+
+  // ---------- D&D Beyond markup checker & repairer modal ----------
+
+  function openDdbCheckerModal() {
+    const state = {
+      input: '',
+      spellEdition: 'any',
+      alignDice: true,
+    };
+    const body = h('div', { class: 'tool-modal' });
+    const textarea = h('textarea', {
+      class: 'input tool-input', rows: '6', spellcheck: 'false',
+      placeholder: 'Paste raw text from a D&D Beyond homebrew box (e.g. Claw. Melee Weapon Attack: [rollable]+6;{“diceNotaion”:“1d20+6”, ...}[/rollable])…',
+      oninput: (e) => { state.input = e.target.value; refresh(); },
+    });
+    const results = h('div', { class: 'tool-results' });
+
+    function refresh() {
+      const text = state.input;
+      if (!text.trim()) {
+        results.replaceChildren(h('p', { class: 'hint' },
+          'Checks for curly quotes, missing quotes or closing tags, misspelled keys like diceNotaion, display-vs-dice mismatches, missing rollDamageType, and 2014/2024 spell tags. Nothing leaves your browser.'));
+        return;
+      }
+      const res = D.analyzeDdbMarkup(text, { spellEdition: state.spellEdition, alignDice: state.alignDice });
+      const summary = res.issues.length === 0
+        ? h('div', { class: 'check-banner is-ok' }, icon('check'),
+          h('span', null, res.rollCount ? `All ${res.rollCount} rollable block${res.rollCount === 1 ? '' : 's'} passed checks. Test in D&D Beyond to confirm.` : 'No markup issues found (no [rollable] tags detected).'))
+        : h('div', { class: `check-banner ${res.remainingCount ? 'is-warn' : 'is-ok'}` },
+          icon(res.remainingCount ? 'alert' : 'check'),
+          h('span', null, `${res.fixedCount} fixed automatically` + (res.remainingCount ? ` · ${res.remainingCount} need${res.remainingCount === 1 ? 's' : ''} review` : ' · ready to copy')));
+
+      const issueList = res.issues.length ? h('ul', { class: 'issue-list' }, res.issues.map((it) => h('li', { class: `issue ${it.fixed ? 'is-fixed' : `is-${it.severity}`}` },
+        h('span', { class: 'issue-tag' }, it.fixed ? 'Fixed' : it.severity === 'error' ? 'Error' : 'Check'),
+        h('div', { class: 'issue-body' },
+          h('div', { class: 'issue-msg' }, it.message),
+          it.snippet && h('code', { class: 'issue-snip' }, it.snippet))))) : '';
+
+      const repairedBox = h('div', { class: 'tool-out' },
+        h('div', { class: 'tool-out-head' },
+          h('span', { class: 'field-label' }, res.fixedCount ? 'Repaired text' : 'Checked text'),
+          h('button', {
+            type: 'button', class: 'btn btn-primary btn-sm',
+            onclick: async () => {
+              try {
+                await writeClipboard(res.repaired, `<p>${F.escapeHtml(res.repaired).replace(/\n/g, '<br>')}</p>`);
+                toast('Copied repaired D&D Beyond text.');
+              } catch {
+                toast('Copy failed — select the text below instead.', true);
+              }
+            },
+          }, icon('copy'), 'Copy fixed text')),
+        h('textarea', { class: 'raw tool-raw', readonly: true, spellcheck: 'false', value: res.repaired, 'aria-label': 'Repaired D&D Beyond text' }));
+
+      results.replaceChildren(summary, issueList, repairedBox);
+    }
+
+    const controls = h('div', { class: 'tool-controls' },
+      h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Spell tags'),
+        seg([['any', 'Keep as-is'], ['2024', '2024 [spells]'], ['2014', '2014 [spell]']], () => state.spellEdition, (v) => { state.spellEdition = v; }, { label: 'Spell tag edition', onChange: refresh })),
+      h('label', { class: 'check' },
+        h('input', { type: 'checkbox', checked: state.alignDice, onchange: (e) => { state.alignDice = e.target.checked; refresh(); } }),
+        h('span', null, 'Auto-align roll JSON when it differs from displayed dice')));
+
+    body.append(textarea, controls, results);
+    refresh();
+    openModal({
+      title: 'Check & Repair D&D Beyond Markup',
+      subtitle: 'Paste broken [rollable] or tooltip text to diagnose and fix common syntax issues',
+      wide: true,
+      body,
+      focus: () => textarea,
+    });
+  }
+
+  // ---------- reusable ability library modal ----------
+
+  function insertAbilityIntoMonster(m, rawAction, targetSection, undoLabel) {
+    captureUndo(undoLabel);
+    const copy = normalizeAction(clone(rawAction));
+    copy.id = uid('a');
+    if (F.kindAllowed(copy.kind, targetSection)) copy.section = targetSection;
+    else if (!F.kindAllowed(copy.kind, F.sectionOf(copy))) copy.section = 'actions';
+    m.actions.push(copy);
+    ui.tab[m.id] = F.sectionOf(copy);
+    ui.open[m.id] = copy.id;
+    ui.addOpen = false;
+    closeModal();
+    rerender();
+    const card = document.querySelector(`.card[data-id="${copy.id}"] .card-name`);
+    if (card) card.scrollIntoView({ block: 'center' });
+    toast(`Inserted “${copy.name || 'ability'}” into ${sectionMeta(copy.section).title}.`, false, { label: 'Undo', onclick: undo });
+  }
+
+  function openAbilityLibraryModal(m, sectionKey) {
+    const state = { query: '', source: 'all' };
+    const body = h('div', { class: 'tool-modal' });
+    const searchInput = h('input', {
+      class: 'input lib-search', type: 'search', placeholder: 'Search by name, damage type, condition, or monster…',
+      autocomplete: 'off', 'aria-label': 'Search abilities',
+      oninput: (e) => { state.query = e.target.value; refresh(); },
+    });
+    const listWrap = h('div', { class: 'lib-results' });
+
+    function collectItems() {
+      const saved = (lib.snippets || []).map((sn) => ({
+        id: sn.id, name: sn.name || sn.action.name || 'Unnamed ability', source: 'saved',
+        origin: 'Saved', snippetId: sn.id, action: sn.action,
+      }));
+      const fromMonsters = [];
+      for (const mon of lib.monsters) {
+        if (mon.id === m.id) continue;
+        for (const a of mon.actions || []) {
+          fromMonsters.push({
+            id: `${mon.id}:${a.id}`, name: a.name || 'Unnamed action', source: 'monsters',
+            origin: mon.name || 'Unnamed Monster', action: a,
+          });
+        }
+      }
+      const starters = L.starterTemplates().map((t) => ({ ...t, origin: 'Starter template' }));
+      if (state.source === 'saved') return saved;
+      if (state.source === 'monsters') return fromMonsters;
+      if (state.source === 'starter') return starters;
+      return [...saved, ...starters, ...fromMonsters];
+    }
+
+    function refresh() {
+      const pool = collectItems();
+      const hits = L.searchAbilities(pool, state.query);
+      if (!hits.length) {
+        const msg = state.source === 'saved' && !lib.snippets.length
+          ? 'No saved abilities yet. Open any action card and click its bookmark icon to save it here.'
+          : state.source === 'monsters' && lib.monsters.length <= 1
+            ? 'No other monsters in your library yet.'
+            : `No abilities match “${state.query.trim()}”.`;
+        listWrap.replaceChildren(h('p', { class: 'monster-empty' }, msg));
+        return;
+      }
+      listWrap.replaceChildren(h('ul', { class: 'lib-list' }, hits.slice(0, 60).map(({ item, ranges }) => {
+        const a = item.action;
+        const secTitle = sectionMeta(F.sectionOf(a)).title;
+        return h('li', { class: 'lib-item' },
+          h('div', { class: 'lib-item-main' },
+            h('div', { class: 'lib-item-head' },
+              h('span', { class: 'lib-item-name' }, L.highlightPieces(item.name, ranges).map((p) => (p.hit ? h('mark', null, p.text) : p.text))),
+              h('span', { class: `lib-badge is-${item.source}` }, item.origin),
+              h('span', { class: 'lib-sec' }, secTitle)),
+            h('div', { class: 'lib-item-sum' }, summarize(normalizeAction(a)))),
+          h('div', { class: 'lib-item-actions' },
+            item.source === 'saved' && iconBtn('trash', `Remove “${item.name}” from library`, () => {
+              captureUndo(`remove “${item.name}” from library`);
+              lib.snippets = lib.snippets.filter((s) => s.id !== item.snippetId);
+              resetBaseline();
+              scheduleSave();
+              refresh();
+              toast(`Removed “${item.name}” from your library.`, false, { label: 'Undo', onclick: undo });
+            }, { class: 'danger' }),
+            h('button', {
+              type: 'button', class: 'btn btn-sm',
+              onclick: () => insertAbilityIntoMonster(m, a, sectionKey, `insert “${item.name}”`),
+            }, 'Insert')));
+      })));
+    }
+
+    const filterRow = h('div', { class: 'lib-top' },
+      searchInput,
+      seg([
+        ['all', 'All'],
+        ['saved', `Saved (${lib.snippets.length})`],
+        ['starter', 'Starters'],
+        ['monsters', 'Your monsters'],
+      ], () => state.source, (v) => { state.source = v; }, { label: 'Filter ability source', onChange: refresh }));
+
+    body.append(
+      filterRow,
+      h('p', { class: 'hint' }, 'Inserting always creates an independent copy — editing it on this monster won’t change any other monster or template.'),
+      listWrap);
+    refresh();
+    openModal({
+      title: 'Insert from Ability Library',
+      subtitle: 'Reuse saved traits & actions, starter templates, or abilities from your other monsters',
+      wide: true,
+      body,
+      focus: () => searchInput,
+    });
+  }
+
+  // ---------- paste existing action modal ----------
+
+  function openPasteActionModal(m, sectionKey) {
+    const state = { raw: '', mode: 'structured', userPickedMode: false };
+    const body = h('div', { class: 'tool-modal' });
+    const textarea = h('textarea', {
+      class: 'input tool-input', rows: '5',
+      placeholder: 'Paste an action, trait, or spellcasting block (plain text, Markdown, or D&D Beyond text)…\nExample: Claw. Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage.',
+      oninput: (e) => { state.raw = e.target.value; refresh(); },
+    });
+    const results = h('div', { class: 'tool-results' });
+
+    function refresh() {
+      if (!state.raw.trim()) {
+        results.replaceChildren(h('p', { class: 'hint' },
+          'Recognizes 2014 & 2024 attacks, saving throws, spellcasting, and reaction triggers. You can always choose “Keep exact wording” to preserve unusual mechanics while still converting dice and conditions into clickable rolls.'));
+        return;
+      }
+      const parsed = D.parseActionText(state.raw, { section: sectionKey });
+      if (!parsed.exactText) return;
+      const hasStruct = !!parsed.structured;
+      if (!state.userPickedMode) state.mode = hasStruct ? 'structured' : 'exact';
+      const activeMode = hasStruct && state.mode === 'structured' ? 'structured' : 'exact';
+      const chosenRaw = activeMode === 'structured' ? parsed.structured.action : parsed.exactText.action;
+      const chosen = normalizeAction(chosenRaw);
+      const targetSec = F.kindAllowed(chosen.kind, sectionKey) ? sectionKey : F.sectionOf(chosen);
+      chosen.section = targetSec;
+
+      const ctx = { subject: m.subject || `The ${m.name || 'creature'}`, wording: m.wording || '2024' };
+      const previewToks = F.formatAction(chosen, ctx);
+      const warnings = F.actionWarnings(chosen);
+      const notes = activeMode === 'structured' ? parsed.structured.notes : [];
+
+      const modeRow = h('div', { class: 'tool-controls' },
+        hasStruct
+          ? seg([
+            ['structured', `Editable fields (${parsed.structured.recognized})`],
+            ['exact', 'Keep exact wording'],
+          ], () => activeMode, (v) => { state.mode = v; state.userPickedMode = true; }, { label: 'Import mode', onChange: refresh })
+          : h('div', { class: 'check-banner is-ok' }, icon('check'),
+            h('span', null, `Keeping exact wording as a Text card (${parsed.exactText.convertedCount} inline roll${parsed.exactText.convertedCount === 1 ? '' : 's'}/tag${parsed.exactText.convertedCount === 1 ? '' : 's'} detected).`)));
+
+      const noteBox = (notes.length || warnings.length) ? h('div', { class: 'warn-list' },
+        ...notes.map((n) => h('p', { class: 'warn' }, icon('alert'), h('span', null, n))),
+        ...warnings.map((w) => h('p', { class: 'warn' }, icon('alert'), h('span', null, w)))) : '';
+
+      const previewSheet = h('article', { class: 'sheet paste-preview' },
+        h('div', { class: 'sb-block' }, h('p', null, previewTokens(previewToks))));
+
+      const foot = h('div', { class: 'modal-foot' },
+        h('span', { class: 'hint' }, `Adds to ${sectionMeta(targetSec).title} · hover underlined rolls to inspect`),
+        h('button', {
+          type: 'button', class: 'btn btn-primary',
+          onclick: () => {
+            recordMonsterCheckpoint(m, 'import', 'Before paste');
+            insertAbilityIntoMonster(m, chosen, targetSec, `paste “${chosen.name || 'action'}”`);
+          },
+        }, icon('plus'), `Add to ${sectionMeta(targetSec).title}`));
+
+      results.replaceChildren(modeRow, noteBox, previewSheet, foot);
+    }
+
+    body.append(textarea, results);
+    refresh();
+    openModal({
+      title: 'Paste Existing Action or Trait',
+      subtitle: 'Turn plain text, Markdown, or D&D Beyond prose into an editable Stat Forge card',
+      wide: true,
+      body,
+      focus: () => textarea,
+    });
   }
 
   // ---------- Ctrl+K finder ----------
@@ -1500,17 +2060,26 @@
         currentId: saved.currentId,
         folders: Array.isArray(saved.folders) ? saved.folders.filter((f) => typeof f === 'string' && f.trim()) : [],
         monsters: saved.monsters.filter(isObj).map(normalizeMonster),
+        snippets: Array.isArray(saved.snippets) ? saved.snippets.map(normalizeSnippet).filter(Boolean) : [],
       };
+      for (const m of lib.monsters) sessionOriginals.set(m.id, clone(m));
     } else {
       const example = normalizeMonster(wyvernRider());
       lib.monsters = [example];
       lib.currentId = example.id;
+      sessionOriginals.set(example.id, clone(example));
     }
     if (!current() && lib.monsters.length) lib.currentId = lib.monsters[0].id;
 
     if (window.api) $('#library-note').textContent = 'Every change saves to your library file as you type. Export a file to back up or share.';
     $('#menu-btn').append(icon('menu'));
     $('#find-icon').append(icon('search'));
+    $('#undo-btn').append(icon('undo'));
+    $('#redo-btn').append(icon('redo'));
+    $('#undo-btn').addEventListener('click', undo);
+    $('#redo-btn').addEventListener('click', redo);
+    $('#check-ddb').addEventListener('click', openDdbCheckerModal);
+    $('#check-ddb-2').addEventListener('click', openDdbCheckerModal);
     $('#new-monster').addEventListener('click', () => newMonster());
     $('#import').addEventListener('click', importMonsters);
     $('#import-2').addEventListener('click', importMonsters);
@@ -1526,12 +2095,22 @@
     window.addEventListener('resize', hideRollTip);
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && $('#app').classList.contains('drawer-open')) { setDrawer(false); return; }
+      if (e.key === 'Escape') {
+        if (modal.open) { e.preventDefault(); closeModal(); return; }
+        if ($('#app').classList.contains('drawer-open')) { setDrawer(false); return; }
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
-      if (key === 'k' && !e.shiftKey && !e.altKey) { e.preventDefault(); if (finder.open) closeFinder(); else openFinder(); return; }
-      if (finder.open) return;
-      if (key === 'n' && !e.shiftKey) { e.preventDefault(); newMonster(); }
+      if (key === 'k' && !e.shiftKey && !e.altKey) { e.preventDefault(); if (modal.open) closeModal(); if (finder.open) closeFinder(); else openFinder(); return; }
+      if (finder.open || modal.open) return;
+      const inEditable = e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+      if (key === 'z' && !e.altKey && !inEditable) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      } else if (key === 'y' && !e.shiftKey && !e.altKey && !inEditable) {
+        e.preventDefault();
+        redo();
+      } else if (key === 'n' && !e.shiftKey) { e.preventDefault(); newMonster(); }
       else if (key === 'c' && e.shiftKey) { e.preventDefault(); copyAll(); }
     });
     // Flush a pending save if the tab closes inside the debounce window.
@@ -1539,6 +2118,8 @@
     setInterval(renderStatus, 20000);
 
     if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) document.querySelector('.find .kbd').textContent = 'Cmd K';
+    resetBaseline();
+    renderUndoButtons();
     renderNewFolder();
     renderAll();
     renderStatus();

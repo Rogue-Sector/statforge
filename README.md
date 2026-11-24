@@ -35,7 +35,7 @@ In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat For
    - **Find a monster** filters the sidebar as you type.
 2. **Pick a section tab**: Traits, Actions, Bonus Actions, Reactions, Legendary or Lair. There's one tab for each box in D&D Beyond's homebrew monster form. Click an action to open it, and use **+ Add action** to add one to the current tab. You can move an action to another section later with its **Section** dropdown.
    - **Traits** are passive features such as Regeneration, Pack Tactics, Legendary Resistance and auras. They take the Text, Saving Throw and Spellcasting kinds; attacks are hidden there, and an attack moved into Traits shows a warning. Use **Usage → Custom** for tags like "3/Day, or 4/Day in Lair". In D&D Beyond they go in the **Special Traits** box.
-   - **Melee, Ranged, or Melee or Ranged attack.** Set the to-hit bonus, reach or range, and damage (dice, die, modifier, type). Then add any of:
+   - **Melee, Ranged, or Melee or Ranged attack.** Set the to-hit bonus, reach or range, and damage (dice, die, modifier, type). In 2014 wording, you can also switch between **Weapon** and **Spell** attacks. Then add any of:
      - **Versatile** (tick it under Damage, melee attacks only): a second damage for two-handed use. "7 (1d8 + 3) Slashing damage, or 8 (1d10 + 3) Slashing damage if used with two hands". It starts as a copy of the main damage one die size bigger, and the type and wording can be changed.
      - **+ Extra damage**: "plus 7 (2d6) Fire damage"
      - **+ Healing**: "and the dragon regains 13 (2d8 + 4) Hit Points" (**Self**, using "Creature is called") or "and the target regains…" (**Target**). The amount is its own healing roll. **Custom wording** replaces "regains 13 (2d8 + 4) Hit Points". Use it for life drain ("regains Hit Points equal to the damage dealt"), which D&D Beyond can't roll separately.
@@ -44,7 +44,7 @@ In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat For
      - **+ Rider text**: extra wording. Start it lowercase to continue the sentence, or with a capital letter to start a new sentence.
      - **+ Miss**: what happens on a miss, added after the hit as "Miss: Half damage." It can hold dice. Tick **Hit or Miss** to label the effect "Hit or Miss:" instead of "Hit:" when it happens either way.
    - **Saving Throw.** Breath weapons and auras: DC, who it targets, what happens on a failure, and what happens on a success. It can also have **+ Healing**.
-   - **Spellcasting.** Pick the ability, save DC and spell attack bonus, then add a line for each frequency ("At Will", "1/Day Each", …) and type the spells separated by commas. Each spell is wrapped as `[spell]Fireball[/spell]`, and anything in brackets like "(level 4 version)" stays outside the tag.
+   - **Spellcasting.** Pick the ability, save DC and clickable spell attack bonus, then add a line for each frequency ("At Will", "1/Day Each", …) and type the spells separated by commas. Spells match the monster's wording (`[spells]Fireball[/spells]` for 2024, `[spell]Fireball[/spell]` for 2014), with a per-card **Spell tooltips** override (including plain text). Anything in brackets like "(level 4 version)" stays outside the tag, and wrapping a custom homebrew spell in `"quotes"` leaves it as plain text.
    - **Text.** Anything else, copied exactly as you type it. In Reactions it also has a **Trigger** box, which gives the 2024 "Trigger: … Response: …" layout.
    - **Dice in text.** Text descriptions, Trigger and Response, rider text, Miss text, custom Success text, the multiattack's extra text and a custom lair intro can hold clickable dice and D&D Beyond tooltips:
      - `{1d4}` gives a plain roll showing "1d4", e.g. "for {1d4} rounds".
@@ -54,7 +54,7 @@ In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat For
      - D&D Beyond tooltips, for the name in braces:
        - `{condition Prone}` gives `[condition]Prone[/condition]`.
        - `{skill Perception}` gives `[skill]Perception[/skill]`.
-       - `{spell Fireball}` gives `[spell]Fireball[/spell]`. Anything in brackets after the name, like "(level 4 version)", stays outside the tag.
+       - `{spell Fireball}` gives `[spells]Fireball[/spells]` in 2024 wording or `[spell]Fireball[/spell]` in 2014 wording (use `{spells ...}` or `{spell14 ...}` to force one). Anything in brackets after the name, like "(level 4 version)", stays outside the tag.
        - `{action Hide}` gives `[action]Hide[/action]`.
        - `{sense Darkvision}` gives `[sense]Darkvision[/sense]`.
        - Conditions and skills are checked against the 5e lists and get their proper capitals, so `{skill sleight of hand}` gives "Sleight of Hand". An unknown condition or skill gets a warning, like an unknown damage type. Actions, senses and spells are pasted as you typed them.
@@ -73,14 +73,18 @@ In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat For
    - **\*\*Bold\*\* names** wraps each action name in `**…**` for places that use Markdown.
 7. **Check what still needs pasting.** After you copy a box, its tab says **copied**. If you change anything that alters its text, the tab says **changed since copy**, and a note next to the Copy button names what changed. Opening and closing cards doesn't count.
 8. **Check a roll.** Hover over or Tab to any underlined value in the preview to see exactly what D&D Beyond will roll: the dice, the kind of roll (and damage type), the average, the range and the roll's action name. A damage roll with no damage type is flagged.
+9. **Reuse or paste existing actions.**
+   - **From library** inserts an independent copy of any saved ability (click the bookmark icon on an open card to save it), a starter template, or an ability from another monster in your library.
+   - **Paste action** turns plain text, Markdown, or existing D&D Beyond text into editable fields (or keeps your exact wording as a Text card with clickable rolls) with a live preview before adding.
+10. **Check & repair D&D Beyond markup.** Use **Check DDB** in the top bar to paste broken `[rollable]` or tooltip text from D&D Beyond, diagnose curly quotes, missing quotes/closing tags, typos like `diceNotaion`, mismatched dice, missing `rollDamageType`, and 2014/2024 spell tags, and copy the repaired text.
 
 When you paste into a rich text box (the D&D Beyond homebrew editor), action names come out **bold-italic**. Plain text boxes get plain text.
 
-**Saving:** every change saves automatically, and the top bar shows when. If the browser refuses to save (storage full, or a private window), the top bar turns into a warning with an **Export** button, so export a file before closing the tab.
+**Saving & recovery:** every change saves automatically, and the top bar shows when. Deleted actions, monsters and folders can be restored immediately from the **Undo** toast or with `Ctrl+Z` / `Ctrl+Y`. Click the clock icon next to a monster's name for local milestone **Checkpoints** (*Before today’s edits*, *Last copied*, and *Before import*). If the browser refuses to save (storage full, or a private window), the top bar turns into a warning with an **Export** button, so export a file before closing the tab.
 
-**Sharing:** Use **Export**, or the download icon next to a monster's name, to save a `.json` file. Someone else can load it with **Import**.
+**Sharing:** Use **Export**, or the download icon next to a monster's name, to save a `.json` file (full exports include saved abilities). Someone else can load it with **Import**.
 
-**Shortcuts:** `Ctrl+K` finds a monster. `Ctrl+N` makes a new monster. `Ctrl+Shift+C` copies everything.
+**Shortcuts:** `Ctrl+K` finds a monster. `Ctrl+N` makes a new monster. `Ctrl+Shift+C` copies everything. `Ctrl+Z` / `Ctrl+Y` undoes and redoes changes.
 
 ## Developing
 
@@ -92,7 +96,8 @@ npm run dist     # build dist/StatForge.exe
 ```
 
 - All the statblock text comes from `src/format.js`.
-- `src/library.js` holds the pure helpers behind the UI: output hashes for the copied tracker, folder grouping, search ranking.
+- `src/library.js` holds the pure helpers behind the UI: output hashes for the copied tracker, folder grouping, search ranking, milestone checkpoints and starter templates.
+- `src/ddb.js` holds the pure D&D Beyond markup checker/repairer and pasted-action parser.
 - The UI is `src/index.html`, `src/styles.css` and `src/app.js` (plain JavaScript, no framework). The fonts are self-hosted in `src/fonts/` under the SIL Open Font License (see the `OFL-*.txt` files there).
 - `PRODUCT.md` is the product brief.
 - `main.js` and `preload.js` are the Electron shell.

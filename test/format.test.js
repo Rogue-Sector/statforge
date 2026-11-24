@@ -185,28 +185,52 @@ test('recharge is a rollable, matching the DM\'s format', () => {
   assert.ok(plain(F.formatAction(a), { markdownBold: true }).startsWith('**Plague of Sand** [rollable]'));
 });
 
-test('spellcasting wraps each spell in [spell] tags', () => {
+test('spellcasting wraps spells in [spells] (2024) or [spell] (2014), makes spell attack rollable, and supports overrides/plain text', () => {
   const a = action({
     name: 'Spellcasting', kind: 'spells',
     spells: {
       ability: 'Charisma', dc: 15, attack: 7, hasAttack: true, components: 'requiring no Material components',
       groups: [
         { label: 'At Will', spells: 'Detect Magic, Mage Hand' },
-        { label: '1/Day Each', spells: 'Fireball (level 4 version), Fly' },
+        { label: '1/Day Each', spells: 'Fireball (level 4 version), Fly, "Shadow Lash"' },
         { label: '2/Day Each', spells: '  ' },
       ],
     },
   });
   assert.equal(
     plain(F.formatAction(a, { subject: 'The wyvern rider' })),
-    'Spellcasting. The wyvern rider casts one of the following spells, requiring no Material components and using Charisma as the spellcasting ability (spell save DC 15, +7 to hit with spell attacks):\n'
-    + 'At Will: [spell]Detect Magic[/spell], [spell]Mage Hand[/spell]\n'
-    + '1/Day Each: [spell]Fireball[/spell] (level 4 version), [spell]Fly[/spell]',
+    'Spellcasting. The wyvern rider casts one of the following spells, requiring no Material components and using Charisma as the spellcasting ability (spell save DC 15, [rollable]+7;{"diceNotation":"1d20+7", "rollType":"to hit", "rollAction":"Spellcasting"}[/rollable] to hit with spell attacks):\n'
+    + 'At Will: [spells]Detect Magic[/spells], [spells]Mage Hand[/spells]\n'
+    + '1/Day Each: [spells]Fireball[/spells] (level 4 version), [spells]Fly[/spells], Shadow Lash',
   );
+  // 2014 wording uses singular [spell] tags.
+  assert.ok(plain(F.formatAction(a, { subject: 'The wyvern rider', wording: '2014' })).includes('At Will: [spell]Detect Magic[/spell], [spell]Mage Hand[/spell]'));
+  // Per-card edition override beats monster wording.
+  a.spells.edition = '2014';
+  assert.ok(plain(F.formatAction(a, { subject: 'The wyvern rider', wording: '2024' })).includes('[spell]Detect Magic[/spell]'));
+  a.spells.edition = '2024';
+  assert.ok(plain(F.formatAction(a, { subject: 'The wyvern rider', wording: '2014' })).includes('[spells]Detect Magic[/spells]'));
+  a.spells.edition = 'plain';
+  assert.ok(plain(F.formatAction(a, { subject: 'The wyvern rider', wording: '2024' })).includes('At Will: Detect Magic, Mage Hand'));
+  a.spells.edition = 'auto';
   a.spells.hasAttack = false;
   a.spells.components = '';
   assert.match(plain(F.formatAction(a)), /^Spellcasting\. The creature casts one of the following spells, using Charisma as the spellcasting ability \(spell save DC 15\):\n/);
-  assert.ok(F.toHtml(F.formatAction(a)).includes('<br><em>At Will:</em> [spell]Detect Magic[/spell]'));
+  assert.ok(F.toHtml(F.formatAction(a)).includes('<br><em>At Will:</em> [spells]Detect Magic[/spells]'));
+});
+
+test('2014 attacks support Weapon Attack and Spell Attack labels', () => {
+  const bolt = action({ name: 'Fire Bolt', kind: 'ranged', attackSource: 'spell', toHit: 7, rangeNormal: 120, rangeLong: 0, damage: { count: 2, die: 10, mod: 0, type: 'Fire' } });
+  assert.equal(
+    readable(F.formatAction(bolt, W14)),
+    'Fire Bolt. Ranged Spell Attack: «+7» to hit, range 120 ft., one target. Hit: 11 «(2d10)» fire damage.',
+  );
+  const touch = action({ name: 'Shocking Grasp', kind: 'melee', attackSource: 'spell', toHit: 6, reach: 5, damage: { count: 2, die: 8, mod: 0, type: 'Lightning' } });
+  assert.match(readable(F.formatAction(touch, W14)), /^Shocking Grasp\. Melee Spell Attack: /);
+  const both = action({ name: 'Arcane Lash', kind: 'both', attackSource: 'spell', toHit: 6, reach: 10, rangeNormal: 30, rangeLong: 0, damage: { count: 1, die: 8, mod: 3, type: 'Force' } });
+  assert.match(readable(F.formatAction(both, W14)), /^Arcane Lash\. Melee or Ranged Spell Attack: /);
+  // 2024 wording keeps unified "Attack Roll:" regardless of attackSource.
+  assert.match(readable(F.formatAction(bolt, { wording: '2024' })), /^Fire Bolt\. Ranged Attack Roll: /);
 });
 
 // ---- traits ----
@@ -643,8 +667,10 @@ test('tags: action, skill, sense, condition and spell', () => {
   assert.equal(inlinePlain('a DC 15 Wisdom ({skill Perception}) check'), 'a DC 15 Wisdom ([skill]Perception[/skill]) check');
   assert.equal(inlinePlain('unless it has {sense Darkvision}'), 'unless it has [sense]Darkvision[/sense]');
   assert.equal(inlinePlain('it has the {condition Prone} condition'), 'it has the [condition]Prone[/condition] condition');
-  assert.equal(inlinePlain('it casts {spell Fireball}'), 'it casts [spell]Fireball[/spell]');
-  assert.equal(inlinePlain('{spell Fireball (level 4 version)}'), '[spell]Fireball[/spell] (level 4 version)');
+  assert.equal(inlinePlain('it casts {spell Fireball}'), 'it casts [spells]Fireball[/spells]');
+  assert.equal(inlinePlain('{spell Fireball (level 4 version)}'), '[spells]Fireball[/spells] (level 4 version)');
+  assert.equal(plain(F.parseInline('it casts {spell Fireball}', 'X', { wording: '2014' }).tokens), 'it casts [spell]Fireball[/spell]');
+  assert.equal(inlinePlain('it casts {spell14 Fireball} and {spells Cure Wounds}'), 'it casts [spell]Fireball[/spell] and [spells]Cure Wounds[/spells]');
 });
 
 test('tags: conditions and skills get their proper names; spacing is tidied', () => {

@@ -238,10 +238,206 @@
     return [kind, clean(meta.cr) && `CR ${clean(meta.cr)}`, clean(m.folder)].filter(Boolean).join(' · ');
   }
 
+  // ---- milestone checkpoints (lightweight cross-session recovery) --------
+
+  /** Stable content hash of a monster, ignoring copy-tracker metadata. */
+  function monsterContentHash(m) {
+    if (!m || typeof m !== 'object') return '';
+    const { copied: _copied, ...rest } = m;
+    return hashString(JSON.stringify(rest));
+  }
+
+  /** Summary shown on a checkpoint row: "3 actions · Bite, Sting, Halberd". */
+  function checkpointSummary(m) {
+    const actions = Array.isArray(m && m.actions) ? m.actions : [];
+    if (!actions.length) return 'No actions';
+    const names = actions.map((a) => clean(a.name) || 'Unnamed').slice(0, 3);
+    const more = actions.length > 3 ? ` +${actions.length - 3}` : '';
+    return `${actions.length} action${actions.length === 1 ? '' : 's'} · ${names.join(', ')}${more}`;
+  }
+
+  /**
+   * Records a milestone checkpoint (session start, last copied, before import) for one monster.
+   * Returns a new store object without mutating the input; skips exact consecutive duplicates.
+   */
+  function recordCheckpoint(store, monster, { kind = 'session', label = '', at = Date.now(), maxPerMonster = 8, maxTotal = 80 } = {}) {
+    const next = {};
+    for (const [id, list] of Object.entries(store || {})) {
+      if (Array.isArray(list) && list.length) next[id] = list.slice();
+    }
+    if (!monster || !monster.id) return next;
+    const hash = monsterContentHash(monster);
+    const list = next[monster.id] ? next[monster.id].slice() : [];
+    // Skip if an identical checkpoint of the same kind already sits at the top.
+    if (list.length && list[0].hash === hash && list[0].kind === kind) {
+      list[0] = { ...list[0], at, label: label || list[0].label };
+      next[monster.id] = list;
+      return next;
+    }
+    // Keep only the latest "copy" checkpoint per label so repeated copies don't push out session saves.
+    const filtered = kind === 'copy'
+      ? list.filter((c) => !(c.kind === 'copy' && c.label === label))
+      : list;
+    const entry = {
+      id: `cp-${at.toString(36)}-${hash.slice(0, 4)}`,
+      kind,
+      label: label || (kind === 'copy' ? 'Last copied' : kind === 'import' ? 'Before import' : 'Before today’s edits'),
+      at,
+      hash,
+      monster: JSON.parse(JSON.stringify(monster)),
+    };
+    next[monster.id] = [entry, ...filtered].slice(0, maxPerMonster);
+    return trimCheckpoints(next, maxTotal);
+  }
+
+  /** Enforces a global checkpoint cap by dropping the oldest entries across all monsters. */
+  function trimCheckpoints(store, maxTotal = 80) {
+    const all = [];
+    for (const [id, list] of Object.entries(store || {})) {
+      for (const cp of list || []) all.push({ id, cp });
+    }
+    if (all.length <= maxTotal) return store;
+    all.sort((a, b) => (b.cp.at || 0) - (a.cp.at || 0));
+    const keep = new Set(all.slice(0, maxTotal).map((x) => `${x.id}|${x.cp.id}`));
+    const out = {};
+    for (const [id, list] of Object.entries(store || {})) {
+      const kept = (list || []).filter((cp) => keep.has(`${id}|${cp.id}`));
+      if (kept.length) out[id] = kept;
+    }
+    return out;
+  }
+
+  function listCheckpoints(store, monsterId) {
+    const list = store && Array.isArray(store[monsterId]) ? store[monsterId] : [];
+    return list.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  }
+
+  // ---- reusable ability library & search ---------------------------------
+
+  function starterTemplates() {
+    return [
+      {
+        id: 'tpl-breath',
+        name: 'Breath Weapon',
+        source: 'starter',
+        action: {
+          name: 'Fire Breath', kind: 'save', section: 'actions',
+          usage: { type: 'recharge', recharge: 5, perDay: 1, cost: 2, text: '' },
+          save: { enabled: true, ability: 'Dexterity', dc: 15, damage: null, half: true },
+          area: 'each creature in a 30-foot Cone',
+          damage: { count: 8, die: 6, mod: 0, type: 'Fire' },
+          extraDamage: [], success: 'half', successText: '',
+        },
+      },
+      {
+        id: 'tpl-poison-bite',
+        name: 'Poisonous Bite',
+        source: 'starter',
+        action: {
+          name: 'Venomous Bite', kind: 'melee', section: 'actions',
+          usage: { type: 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
+          toHit: 6, reach: 5,
+          damage: { count: 1, die: 8, mod: 3, type: 'Piercing' },
+          extraDamage: [],
+          save: { enabled: true, ability: 'Constitution', dc: 14, damage: { count: 4, die: 6, mod: 0, type: 'Poison' }, half: true },
+          condition: { enabled: true, name: 'Poisoned', duration: 'until the end of its next turn' },
+        },
+      },
+      {
+        id: 'tpl-grapple-slam',
+        name: 'Grappling Slam',
+        source: 'starter',
+        action: {
+          name: 'Crushing Slam', kind: 'melee', section: 'actions',
+          usage: { type: 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
+          toHit: 7, reach: 10,
+          damage: { count: 2, die: 8, mod: 4, type: 'Bludgeoning' },
+          extraDamage: [],
+          condition: { enabled: true, name: 'Grappled', duration: '(escape DC 14)' },
+        },
+      },
+      {
+        id: 'tpl-regeneration',
+        name: 'Regeneration',
+        source: 'starter',
+        action: {
+          name: 'Regeneration', kind: 'text', section: 'traits',
+          usage: { type: 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
+          description: 'The creature regains {heal 2d8} Hit Points at the start of each of its turns. If it takes Fire or Acid damage, this trait doesn’t function on its next turn.',
+        },
+      },
+      {
+        id: 'tpl-legendary-res',
+        name: 'Legendary Resistance',
+        source: 'starter',
+        action: {
+          name: 'Legendary Resistance', kind: 'text', section: 'traits',
+          usage: { type: 'custom', recharge: 5, perDay: 3, cost: 2, text: '3/Day, or 4/Day in Lair' },
+          description: 'If the creature fails a saving throw, it can choose to succeed instead.',
+        },
+      },
+      {
+        id: 'tpl-teleport',
+        name: 'Teleport',
+        source: 'starter',
+        action: {
+          name: 'Misty Step', kind: 'text', section: 'bonus',
+          usage: { type: 'recharge', recharge: 5, perDay: 1, cost: 2, text: '' },
+          description: 'The creature teleports up to 30 feet to an unoccupied space it can see.',
+        },
+      },
+      {
+        id: 'tpl-spellcasting',
+        name: 'Innate Spellcasting',
+        source: 'starter',
+        action: {
+          name: 'Spellcasting', kind: 'spells', section: 'actions',
+          usage: { type: 'none', recharge: 5, perDay: 1, cost: 2, text: '' },
+          spells: {
+            ability: 'Charisma', dc: 14, attack: 6, hasAttack: true, edition: 'auto',
+            components: 'requiring no Material components',
+            groups: [
+              { label: 'At Will', spells: 'Detect Magic, Mage Hand' },
+              { label: '1/Day Each', spells: 'Fireball, Misty Step' },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  /**
+   * Ranks reusable ability entries ({ name, origin?, action }) against a query.
+   * Matches action name first, then origin/monster name, kind, or damage type.
+   */
+  function searchAbilities(items, query) {
+    const q = clean(query);
+    if (!q) return items.map((item) => ({ item, score: 0, ranges: [] }));
+    const out = [];
+    items.forEach((item, index) => {
+      const a = item.action || {};
+      const byName = matchText(item.name || a.name, q);
+      if (byName) return out.push({ item, score: 1000 + byName.score, ranges: byName.ranges, index });
+      const extra = [
+        item.origin,
+        a.section,
+        a.kind,
+        a.damage && a.damage.type,
+        a.condition && a.condition.enabled && a.condition.name,
+        a.description,
+      ].map((x) => matchText(x, q)).filter((x) => x && x.score >= 60);
+      if (extra.length) out.push({ item, score: Math.max(...extra.map((x) => x.score)), ranges: [], index });
+    });
+    out.sort((a, b) => b.score - a.score || a.index - b.index);
+    return out.map(({ item, score, ranges }) => ({ item, score, ranges }));
+  }
+
   return {
     UNSORTED,
     hashString, snapshotSection, blockName, copyStatus, changeMessage,
     groupByFolder, matchText, searchMonsters, highlightPieces, relativeTime, subtitleOf,
     parseSigned, formatSigned, signedInputState,
+    monsterContentHash, checkpointSummary, recordCheckpoint, trimCheckpoints, listCheckpoints,
+    starterTemplates, searchAbilities,
   };
 });

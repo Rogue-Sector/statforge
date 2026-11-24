@@ -29,7 +29,12 @@
       <button id="menu-btn" class="icon-btn menu-btn" type="button" aria-label="Show monsters" aria-controls="library" aria-expanded="false"></button>
       <div class="wordmark"><img class="wordmark-mark" src="icons/mark.svg" alt="" width="21" height="24">Stat Forge</div>
       <div class="topbar-right">
+        <div class="topbar-tools">
+          <button id="undo-btn" class="icon-btn" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled></button>
+          <button id="redo-btn" class="icon-btn" type="button" title="Redo (Ctrl+Y)" aria-label="Redo" disabled></button>
+        </div>
         <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
+        <button id="check-ddb" class="btn btn-outline topbar-file" type="button" title="Check and repair pasted D&amp;D Beyond rollable markup">Check DDB</button>
         <button id="export-all" class="btn btn-outline topbar-file" type="button">Export</button>
         <button id="import" class="btn btn-outline topbar-file" type="button">Import</button>
         <a class="credit" href="https://roguesector.dev" target="_blank" rel="noopener">Made By Rogue</a>
@@ -46,6 +51,7 @@
       <nav id="monster-list" class="folders" aria-label="Monsters"></nav>
       <div id="new-folder" class="new-folder"></div>
       <div class="drawer-files">
+        <button id="check-ddb-2" class="btn btn-outline" type="button">Check DDB</button>
         <button id="export-all-2" class="btn btn-outline" type="button">Export</button>
         <button id="import-2" class="btn btn-outline" type="button">Import</button>
       </div>
@@ -67,6 +73,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="roll-tip" class="roll-tip" role="tooltip" hidden></div>
   <div id="finder" class="finder" hidden></div>
+  <div id="modal" class="modal" hidden></div>
 
   <datalist id="durations">
     <option value="until the start of the creature’s next turn">
@@ -119,6 +126,7 @@
 
   <script src="format.js"></script>
   <script src="library.js"></script>
+  <script src="ddb.js"></script>
   <script src="example.js"></script>
   <script src="app.js"></script>
 </body>

@@ -7,20 +7,17 @@
   const { wyvernRider } = window.StatblockExample;
   const $ = (sel) => document.querySelector(sel);
 
-  // ---------- platform: Electron bridge, or browser fallbacks ----------
+  // ---------- browser storage, clipboard & file import/export ----------
 
   const STORAGE_KEY = 'stat-forge-library';
   const LEGACY_STORAGE_KEY = 'statblock-builder-library';
-  const storage = window.api
-    ? { load: () => window.api.loadLibrary(), save: (d) => window.api.saveLibrary(d) }
-    : {
-      load: async () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; } },
-      // Lets quota and private-mode errors through, so the save status can warn instead of losing work.
-      save: async (d) => { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); },
-    };
+  const storage = {
+    load: async () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; } },
+    // Lets quota and private-mode errors through, so the save status can warn instead of losing work.
+    save: async (d) => { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); },
+  };
 
   async function writeClipboard(text, html) {
-    if (window.api) return window.api.copy(text, html);
     try {
       await navigator.clipboard.write([new ClipboardItem({
         'text/plain': new Blob([text], { type: 'text/plain' }),
@@ -32,7 +29,6 @@
   }
 
   async function exportJson(name, data) {
-    if (window.api) return window.api.exportFile(name, data);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     a.download = name;
@@ -42,7 +38,6 @@
   }
 
   function importJson() {
-    if (window.api) return window.api.importFile();
     return new Promise((resolve, reject) => {
       const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
       input.onchange = () => {
@@ -2073,7 +2068,6 @@
     }
     if (!current() && lib.monsters.length) lib.currentId = lib.monsters[0].id;
 
-    if (window.api) $('#library-note').textContent = 'Every change saves to your library file as you type. Export a file to back up or share.';
     $('#menu-btn').append(icon('menu'));
     $('#find-icon').append(icon('search'));
     $('#undo-btn').append(icon('undo'));

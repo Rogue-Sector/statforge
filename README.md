@@ -110,7 +110,6 @@ npm test         # run the unit tests (requires Node)
 - `src/library.js`: copied-section hashing, folder grouping, search ranking, milestone checkpoints, and starter templates.
 - `src/ddb.js`: D&D Beyond markup checker/repairer and pasted-action parser.
 - `src/index.html`, `src/styles.css`, `src/app.js`: UI and self-hosted SIL OFL fonts (`src/fonts/`).
-- `PRODUCT.md`: product brief.
 
 ## License
 

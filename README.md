@@ -1,4 +1,4 @@
-# Statblock Builder
+# Stat Forge
 
 A small tool for building D&D monster actions with D&D Beyond's clickable dice (`[rollable]…[/rollable]`). Fill in the numbers, then copy and paste the result into D&D Beyond or AboveVTT. Nothing leaves your browser.
 
@@ -8,7 +8,7 @@ A small tool for building D&D monster actions with D&D Beyond's clickable dice (
 
 ### In your browser
 
-Statblock Builder is a static site in `src/` with no build step and no network calls — host `src/` on any static host (GitHub Pages, Cloudflare Pages, Netlify, etc.) or serve it locally:
+Stat Forge is a static site in `src/` with no build step and no network calls — host `src/` on any static host (GitHub Pages, Cloudflare Pages, Netlify, etc.) or serve it locally:
 
 ```bash
 npx serve src
@@ -18,11 +18,11 @@ Your monsters save automatically in your browser's `localStorage`. Use **Export*
 
 ### Offline Windows app (optional)
 
-Double-click `StatblockBuilder.exe` (built with `npm run dist`). There's nothing to install, and it works offline.
+Double-click `StatForge.exe` (built with `npm run dist`). There's nothing to install, and it works offline.
 
 The app isn't code-signed, so the first time you run it Windows may show **"Windows protected your PC"**. Click **More info → Run anyway**.
 
-In the desktop app, your monsters are saved automatically to `%APPDATA%\Statblock Builder\library.json`.
+In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat Forge\library.json`.
 
 ## Using it
 
@@ -88,7 +88,7 @@ When you paste into a rich text box (the D&D Beyond homebrew editor), action nam
 npm install
 npm start        # run the app
 npm test         # check the generated text against the Wyvern Rider example
-npm run dist     # build dist/StatblockBuilder.exe
+npm run dist     # build dist/StatForge.exe
 ```
 
 - All the statblock text comes from `src/format.js`.

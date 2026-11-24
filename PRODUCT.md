@@ -27,7 +27,7 @@ Used in a desktop browser with D&D Beyond open in the next tab. The DM copies on
 - Not affiliated with Wizards of the Coast or D&D Beyond. Must not use their logos or trade dress.
 
 ## Brand Commitments
-The tool has its own name ("Statblock Builder" for now) with a light "Made By Rogue" credit linking to roguesector.dev. Light touch, not full RogueSector branding.
+The tool is named "Stat Forge" with a light "Made By Rogue" credit linking to roguesector.dev. Light touch, not full RogueSector branding.
 
 ## Evidence on Hand
 - Real DDB forum threads documenting the pain: 106856 (rollable tags guide, 2021 to 2026), article 1651, threads 227891, 232771, 212873.

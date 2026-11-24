@@ -1,6 +1,6 @@
 {
-  "name": "Statblock Builder",
-  "short_name": "Statblock Builder",
+  "name": "Stat Forge",
+  "short_name": "Stat Forge",
   "description": "Build D&D Beyond and AboveVTT rollable monster actions and copy them straight into your statblock.",
   "start_url": "./",
   "display": "standalone",

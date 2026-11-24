@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const libraryFile = () => path.join(app.getPath('userData'), 'library.json');
+const legacyLibraryFile = () => path.join(app.getPath('appData'), 'Statblock Builder', 'library.json');
 
 function createWindow() {
   nativeTheme.themeSource = 'dark';
@@ -11,7 +12,7 @@ function createWindow() {
     height: 900,
     minWidth: 1080,
     minHeight: 640,
-    title: 'Statblock Builder',
+    title: 'Stat Forge',
     backgroundColor: '#0f1626',
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'build', 'icon.png'),
@@ -33,11 +34,14 @@ function createWindow() {
 }
 
 ipcMain.handle('library:load', () => {
-  try {
-    return JSON.parse(fs.readFileSync(libraryFile(), 'utf8'));
-  } catch {
-    return null;
+  for (const file of [libraryFile(), legacyLibraryFile()]) {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      // try next path
+    }
   }
+  return null;
 });
 
 ipcMain.handle('library:save', (_e, data) => {
@@ -61,7 +65,7 @@ ipcMain.handle('file:export', async (e, { suggestedName, data }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Export monsters',
     defaultPath: suggestedName,
-    filters: [{ name: 'Statblock Builder monsters', extensions: ['json'] }],
+    filters: [{ name: 'Stat Forge monsters', extensions: ['json'] }],
   });
   if (canceled || !filePath) return false;
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
@@ -73,7 +77,7 @@ ipcMain.handle('file:import', async (e) => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Import monsters',
     properties: ['openFile'],
-    filters: [{ name: 'Statblock Builder monsters', extensions: ['json'] }],
+    filters: [{ name: 'Stat Forge monsters', extensions: ['json'] }],
   });
   if (canceled || !filePaths.length) return null;
   return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));

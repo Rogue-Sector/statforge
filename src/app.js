@@ -8,11 +8,12 @@
 
   // ---------- platform: Electron bridge, or browser fallbacks ----------
 
-  const STORAGE_KEY = 'statblock-builder-library';
+  const STORAGE_KEY = 'stat-forge-library';
+  const LEGACY_STORAGE_KEY = 'statblock-builder-library';
   const storage = window.api
     ? { load: () => window.api.loadLibrary(), save: (d) => window.api.saveLibrary(d) }
     : {
-      load: async () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } },
+      load: async () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; } },
       // Lets quota and private-mode errors through, so the save status can warn instead of losing work.
       save: async (d) => { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); },
     };
@@ -1196,8 +1197,9 @@
 
   const slug = (s) => (s || 'monster').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'monster';
 
-  const FOLDERS_KEY = 'statblock-builder-collapsed-folders';
-  const collapsed = new Set((() => { try { return JSON.parse(localStorage.getItem(FOLDERS_KEY)) || []; } catch { return []; } })());
+  const FOLDERS_KEY = 'stat-forge-collapsed-folders';
+  const LEGACY_FOLDERS_KEY = 'statblock-builder-collapsed-folders';
+  const collapsed = new Set((() => { try { return JSON.parse(localStorage.getItem(FOLDERS_KEY) || localStorage.getItem(LEGACY_FOLDERS_KEY)) || []; } catch { return []; } })());
   const saveCollapsed = () => { try { localStorage.setItem(FOLDERS_KEY, JSON.stringify([...collapsed])); } catch { /* per-browser nicety only */ } };
   const folderKey = (name) => String(name || '').trim().toLowerCase();
   let newFolderOpen = false;
@@ -1370,7 +1372,7 @@
 
   function exportAll() {
     if (!lib.monsters.length) return toast('No monsters to export.', true);
-    exportJson('statblock-monsters.json', { version: 1, monsters: lib.monsters });
+    exportJson('stat-forge-monsters.json', { version: 1, monsters: lib.monsters });
   }
 
   // ---------- Ctrl+K finder ----------

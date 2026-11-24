@@ -1,6 +1,6 @@
 {
-  "name": "statblock-builder",
-  "productName": "Statblock Builder",
+  "name": "stat-forge",
+  "productName": "Stat Forge",
   "version": "1.0.0",
   "description": "Build D&D Beyond / AboveVTT rollable monster actions and copy them straight into your statblock.",
   "main": "main.js",
@@ -11,8 +11,8 @@
     "dist": "electron-builder --win portable"
   },
   "build": {
-    "appId": "com.statblockbuilder.app",
-    "productName": "Statblock Builder",
+    "appId": "com.statforge.app",
+    "productName": "Stat Forge",
     "files": [
       "main.js",
       "preload.js",
@@ -24,7 +24,7 @@
       "icon": "build/icon.ico"
     },
     "portable": {
-      "artifactName": "StatblockBuilder.exe"
+      "artifactName": "StatForge.exe"
     },
     "directories": {
       "output": "dist"

@@ -1603,6 +1603,7 @@
   const modal = { open: false, returnTo: null };
 
   function openModal({ title, subtitle = '', wide = false, body, focus }) {
+    hideRollTip();
     closeFinder();
     setDrawer(false);
     modal.open = true;
@@ -1948,6 +1949,7 @@
 
   function openFinder() {
     if (finder.open) return;
+    hideRollTip();
     finder.open = true;
     finder.returnTo = document.activeElement;
     finder.query = '';

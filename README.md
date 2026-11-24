@@ -1,109 +1,117 @@
+<div align="center">
+
+<a href="https://statforge.roguesector.dev/">
+  <img src="src/icons/icon.svg" alt="Stat Forge logo" width="88" height="88" />
+</a>
+
 # Stat Forge
 
-A small tool for building D&D monster actions with D&D Beyond's clickable dice (`[rollable]…[/rollable]`). Fill in the numbers, then copy and paste the result into D&D Beyond or AboveVTT. Nothing leaves your browser.
+Build D&D monster actions with clickable D&D Beyond and AboveVTT dice (`[rollable]...[/rollable]`) without writing the markup by hand.
 
-**Screenshot:** _coming soon_
+Enter the numbers you already know, check the live preview, and paste each section into D&D Beyond. Everything runs in your browser with no account and no server.
 
-## Running it
+<p>
+  <a href="https://statforge.roguesector.dev/">
+    <img src="https://img.shields.io/badge/Open_Stat_Forge-statforge.roguesector.dev-d6a845?style=for-the-badge&labelColor=0f1626" alt="Open Stat Forge at statforge.roguesector.dev" />
+  </a>
+</p>
 
-### In your browser
+<p>
+  <a href="https://github.com/Rogue-Sector/statforge/actions/workflows/test.yml">
+    <img src="https://github.com/Rogue-Sector/statforge/actions/workflows/test.yml/badge.svg" alt="Test status" />
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-24304a?style=flat" alt="MIT License" />
+  </a>
+  <img src="https://img.shields.io/badge/rules-5e_2024_%26_2014-24304a?style=flat" alt="5e 2024 and 2014 rules" />
+  <img src="https://img.shields.io/badge/storage-local_in_browser-24304a?style=flat" alt="Local in browser" />
+</p>
 
-Stat Forge is a static site in `src/` with no build step and no network calls — host `src/` on any static host (GitHub Pages, Cloudflare Pages, Netlify, etc.) or serve it locally:
+</div>
 
-```bash
-npx serve src
-```
+<p align="center">
+  <a href="https://statforge.roguesector.dev/">
+    <img src="docs/screenshots/editor.png" alt="Stat Forge editor showing Wyvern Rider's Sting attack, live parchment preview, and hovered D&D Beyond roll readout" width="100%" />
+  </a>
+</p>
 
-Your monsters save automatically in your browser's `localStorage`. Use **Export** to back them up or move them between browsers.
+## What it does
 
-### Offline Windows app (optional)
+- One tab per D&D Beyond box: Traits, Actions, Bonus Actions, Reactions, Legendary Actions, and Lair Actions. Each tab tracks whether you have copied it and flags when an edit changes the pasted text.
+- Switch any monster between 2024 wording (`Melee Attack Roll:`, `Failure:`, `[spells]`) and 2014 wording (`Melee Weapon Attack:` or `Melee Spell Attack:`, `taking ... on a failed save`, `[spell]`).
+- Supports Multiattack, versatile two-handed damage, extra damage, healing and life drain, on-hit saving throws, conditions, Miss and Hit-or-Miss lines, clickable `(Recharge 5-6)`, and Spellcasting with clickable spell attack bonuses.
+- Hover or Tab to any underlined value in the preview to see the exact dice, roll type, damage type, average, range, and roll action name that D&D Beyond will roll.
+- Your monsters save automatically in `localStorage`, with `Ctrl+Z` / `Ctrl+Y` undo, undoable deletes, local recovery checkpoints (before your first edit of a session, when you copy, and before imports), and JSON Export/Import.
 
-Double-click `StatForge.exe` (built with `npm run dist`). There's nothing to install, and it works offline.
+## Fixing broken D&D Beyond markup
 
-The app isn't code-signed, so the first time you run it Windows may show **"Windows protected your PC"**. Click **More info → Run anyway**.
+Open Check DDB in the top bar and paste raw text straight from a D&D Beyond homebrew box. It catches and repairs curly quotes, missing quotes or closing tags, typos like `diceNotaion`, display-vs-dice mismatches, and missing `rollDamageType`, then gives you clean text to copy back.
 
-In the desktop app, your monsters are saved automatically to `%APPDATA%\Stat Forge\library.json`.
+<img src="docs/screenshots/ddb-checker.png" alt="Check and Repair D&D Beyond Markup dialog diagnosing curly quotes, diceNotaion typo, and mismatched dice notation" width="100%" />
 
-## Using it
+## Pasting existing actions
 
-1. **Pick or create a monster** in the left sidebar, or press `Ctrl+K` (`Cmd+K` on a Mac) to find one by name, folder or type. The Wyvern Rider is preloaded as an example.
-   - Click the line under the monster's name to set its **size, type, CR and folder**. They only organise your library and never appear in the copied text. **Creature is called** in the same panel sets how the text names it, e.g. "The dragon".
-   - **Wording** in the same panel picks the rules the text is written for, for the whole monster:
-     - **2024 rules**: "Melee Attack Roll: +5, reach 5 ft. Hit: 7 (1d8 + 3) Slashing damage." Saving throws get "Failure:" and "Success:" labels.
-     - **2014 rules**: "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage." Saving throws read "Each creature in a 30-foot cone must make a DC 15 Dexterity saving throw, taking 22 (5d8) fire damage on a failed save, or half as much damage on a successful one." Damage types and "hit points" are lowercase. Conditions keep their capital letter, because they're D&D Beyond tooltips.
-   - The sidebar groups monsters by folder. Make one with **+ New folder**, then drag monsters onto it or pick it under a monster's name. Deleting a folder moves its monsters to Unsorted.
-   - **Find a monster** filters the sidebar as you type.
-2. **Pick a section tab**: Traits, Actions, Bonus Actions, Reactions, Legendary or Lair. There's one tab for each box in D&D Beyond's homebrew monster form. Click an action to open it, and use **+ Add action** to add one to the current tab. You can move an action to another section later with its **Section** dropdown.
-   - **Traits** are passive features such as Regeneration, Pack Tactics, Legendary Resistance and auras. They take the Text, Saving Throw and Spellcasting kinds; attacks are hidden there, and an attack moved into Traits shows a warning. Use **Usage → Custom** for tags like "3/Day, or 4/Day in Lair". In D&D Beyond they go in the **Special Traits** box.
-   - **Melee, Ranged, or Melee or Ranged attack.** Set the to-hit bonus, reach or range, and damage (dice, die, modifier, type). In 2014 wording, you can also switch between **Weapon** and **Spell** attacks. Then add any of:
-     - **Versatile** (tick it under Damage, melee attacks only): a second damage for two-handed use. "7 (1d8 + 3) Slashing damage, or 8 (1d10 + 3) Slashing damage if used with two hands". It starts as a copy of the main damage one die size bigger, and the type and wording can be changed.
-     - **+ Extra damage**: "plus 7 (2d6) Fire damage"
-     - **+ Healing**: "and the dragon regains 13 (2d8 + 4) Hit Points" (**Self**, using "Creature is called") or "and the target regains…" (**Target**). The amount is its own healing roll. **Custom wording** replaces "regains 13 (2d8 + 4) Hit Points". Use it for life drain ("regains Hit Points equal to the damage dealt"), which D&D Beyond can't roll separately.
-     - **+ Saving throw**: "the target must make a DC 16 Constitution saving throw or take…"
-     - **+ Condition**: Poisoned, Grappled, Prone, …
-     - **+ Rider text**: extra wording. Start it lowercase to continue the sentence, or with a capital letter to start a new sentence.
-     - **+ Miss**: what happens on a miss, added after the hit as "Miss: Half damage." It can hold dice. Tick **Hit or Miss** to label the effect "Hit or Miss:" instead of "Hit:" when it happens either way.
-   - **Saving Throw.** Breath weapons and auras: DC, who it targets, what happens on a failure, and what happens on a success. It can also have **+ Healing**.
-   - **Spellcasting.** Pick the ability, save DC and clickable spell attack bonus, then add a line for each frequency ("At Will", "1/Day Each", …) and type the spells separated by commas. Spells match the monster's wording (`[spells]Fireball[/spells]` for 2024, `[spell]Fireball[/spell]` for 2014), with a per-card **Spell tooltips** override (including plain text). Anything in brackets like "(level 4 version)" stays outside the tag, and wrapping a custom homebrew spell in `"quotes"` leaves it as plain text.
-   - **Text.** Anything else, copied exactly as you type it. In Reactions it also has a **Trigger** box, which gives the 2024 "Trigger: … Response: …" layout.
-   - **Dice in text.** Text descriptions, Trigger and Response, rider text, Miss text, custom Success text, the multiattack's extra text and a custom lair intro can hold clickable dice and D&D Beyond tooltips:
-     - `{1d4}` gives a plain roll showing "1d4", e.g. "for {1d4} rounds".
-     - `{dmg 3d6 Fire}` gives "10 (3d6)" that rolls Fire damage. Type the words "Fire damage" after it yourself. The damage type is optional.
-     - `{heal 2d8+4}` gives "13 (2d8 + 4)" that rolls healing.
-     - `{+5}` gives a "+5" that rolls 1d20+5 to hit.
-     - D&D Beyond tooltips, for the name in braces:
-       - `{condition Prone}` gives `[condition]Prone[/condition]`.
-       - `{skill Perception}` gives `[skill]Perception[/skill]`.
-       - `{spell Fireball}` gives `[spells]Fireball[/spells]` in 2024 wording or `[spell]Fireball[/spell]` in 2014 wording (use `{spells ...}` or `{spell14 ...}` to force one). Anything in brackets after the name, like "(level 4 version)", stays outside the tag.
-       - `{action Hide}` gives `[action]Hide[/action]`.
-       - `{sense Darkvision}` gives `[sense]Darkvision[/sense]`.
-       - Conditions and skills are checked against the 5e lists and get their proper capitals, so `{skill sleight of hand}` gives "Sleight of Hand". An unknown condition or skill gets a warning, like an unknown damage type. Actions, senses and spells are pasted as you typed them.
-     - `\{` types a plain brace. Anything in braces that the app can't read is pasted as you typed it, and a warning appears on the card.
-   - **Usage** adds a clickable *(Recharge 5-6)* that rolls a d6, *(3/Day)*, *(Costs 2 Actions)* for legendary actions, or your own tag after the name.
-3. **Multiattack.** Tick it, then set how many times each attack is used. Only attacks in the Actions section can be picked.
-4. **Legendary Actions.** Once the section has an action, set the number of uses and the uses in its lair (0 if it has no lair). The intro paragraph uses the monster's **Wording**. Monsters saved before the Wording setting existed keep the wording their legendary intro had.
-5. **Lair Actions.** The Lair tab matches D&D Beyond's **Lair and Lair Actions** box. Each lair action is a **Text** or **Saving Throw** entry, with dice in its text (the description, or a saving throw's rider and Success text). Leave the name empty to paste the entry as a plain paragraph, the way lair actions are usually written. Once the tab has an entry, the **Lair Actions intro** card sets the opening paragraph: "When fighting inside its lair, the dragon can take lair actions. On initiative count 20 (losing initiative ties), the dragon takes a lair action to cause one of the following effects; the dragon can’t use the same effect two rounds in a row:"
-   - The intro always uses 2014 wording, because the 2024 rules have no lair actions. It names the monster with **Creature is called**.
-   - Change the **Initiative count**, untick **Can’t use the same effect two rounds in a row**, or type a **Custom intro** to replace the whole paragraph.
-6. **Copy.** D&D Beyond has a separate box for each section, so copy one section at a time. The preview on the right shows the current tab's box:
-   - **Copy Actions** (or Copy Special Traits, …) copies that whole box.
-   - Clicking an action in the preview, or its copy icon, copies just that action.
-   - **Copy all sections** copies everything, with each section's title on its own line between them.
-   - **Paste text** shows the exact text that will be pasted.
-   - **\*\*Bold\*\* names** wraps each action name in `**…**` for places that use Markdown.
-7. **Check what still needs pasting.** After you copy a box, its tab says **copied**. If you change anything that alters its text, the tab says **changed since copy**, and a note next to the Copy button names what changed. Opening and closing cards doesn't count.
-8. **Check a roll.** Hover over or Tab to any underlined value in the preview to see exactly what D&D Beyond will roll: the dice, the kind of roll (and damage type), the average, the range and the roll's action name. A damage roll with no damage type is flagged.
-9. **Reuse or paste existing actions.**
-   - **From library** inserts an independent copy of any saved ability (click the bookmark icon on an open card to save it), a starter template, or an ability from another monster in your library.
-   - **Paste action** turns plain text, Markdown, or existing D&D Beyond text into editable fields (or keeps your exact wording as a Text card with clickable rolls) with a live preview before adding.
-10. **Check & repair D&D Beyond markup.** Use **Check DDB** in the top bar to paste broken `[rollable]` or tooltip text from D&D Beyond, diagnose curly quotes, missing quotes/closing tags, typos like `diceNotaion`, mismatched dice, missing `rollDamageType`, and 2014/2024 spell tags, and copy the repaired text.
+Use Paste action to drop in plain text, Markdown, or existing D&D Beyond prose. Standard attacks, saving throws, and Spellcasting blocks become editable fields with a live preview. If an ability has unusual wording, switch to Keep exact wording to preserve the text while still turning its dice and conditions into clickable rolls.
 
-When you paste into a rich text box (the D&D Beyond homebrew editor), action names come out **bold-italic**. Plain text boxes get plain text.
+<img src="docs/screenshots/paste-action.png" alt="Paste Existing Action dialog converting Markdown Fire Breath into an editable Saving Throw with live roll preview" width="100%" />
 
-**Saving & recovery:** every change saves automatically, and the top bar shows when. Deleted actions, monsters and folders can be restored immediately from the **Undo** toast or with `Ctrl+Z` / `Ctrl+Y`. Click the clock icon next to a monster's name for local milestone **Checkpoints** (*Before today’s edits*, *Last copied*, and *Before import*). If the browser refuses to save (storage full, or a private window), the top bar turns into a warning with an **Export** button, so export a file before closing the tab.
+## Reusing abilities across monsters
 
-**Sharing:** Use **Export**, or the download icon next to a monster's name, to save a `.json` file (full exports include saved abilities). Someone else can load it with **Import**.
+Click the bookmark icon on any open card to save it to your library. From library lets you search your saved abilities, pull actions from your other monsters, or start from built-in patterns (Breath Weapon, Poisonous Bite, Grappling Slam, Regeneration, Legendary Resistance, Teleport, and Innate Spellcasting). Inserting always makes an independent copy.
 
-**Shortcuts:** `Ctrl+K` finds a monster. `Ctrl+N` makes a new monster. `Ctrl+Shift+C` copies everything. `Ctrl+Z` / `Ctrl+Y` undoes and redoes changes.
+<img src="docs/screenshots/ability-library.png" alt="Insert from Ability Library dialog listing saved abilities and starter templates" width="100%" />
+
+## Inline dice and tooltips
+
+Descriptions, reaction Triggers and Responses, riders, Miss text, custom Success text, Multiattack extra text, and custom Lair intros accept inline rolls and D&D Beyond tooltip tags:
+
+| Type this | Produces |
+| :--- | :--- |
+| `{1d4}` | Clickable plain roll (`1d4`) |
+| `{dmg 3d6 Fire}` | `10 (3d6)` clickable Fire damage roll (damage type is optional) |
+| `{heal 2d8+4}` | `13 (2d8 + 4)` clickable healing roll |
+| `{+5}` | Clickable `+5` to-hit roll (`1d20+5`) |
+| `{condition Prone}` | `[condition]Prone[/condition]` (checked against the 5e list) |
+| `{skill Perception}` | `[skill]Perception[/skill]` (checked against the 5e list) |
+| `{spell Fireball}` | `[spells]Fireball[/spells]` in 2024 wording or `[spell]Fireball[/spell]` in 2014 wording (use `{spells ...}` or `{spell14 ...}` to force one) |
+| `{action Hide}` / `{sense Darkvision}` | `[action]Hide[/action]` / `[sense]Darkvision[/sense]` |
+| `\{` | Literal `{` |
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl+K` / `Cmd+K` | Find a monster by name, folder, or type |
+| `Ctrl+N` / `Cmd+N` | New monster |
+| `Ctrl+Shift+C` / `Cmd+Shift+C` | Copy all sections |
+| `Ctrl+Z` / `Ctrl+Y` | Undo or redo changes |
+
+<details>
+<summary>More usage notes (monster details, Spellcasting, Lair Actions, copying and backup)</summary>
+
+- Click the line under a monster's name to set its size, type, CR, folder, how the text refers to it (such as `"The dragon"`), and its 2024 or 2014 wording. Size, type, CR, and folder only organize your sidebar and never appear in copied text.
+- In Spellcasting, separate spells with commas per frequency line (`At Will`, `1/Day Each`, and so on). Anything in parentheses like `(level 4 version)` stays outside the tooltip tag. Wrap a custom homebrew spell in `"quotes"` to leave it as plain text, or change Spell tooltips on the card.
+- Lair actions take Text or Saving Throw entries. Leave the name blank for bare paragraphs like the Monster Manual, and edit the Lair Actions intro card to change the initiative count, repeat rule, or custom opening paragraph.
+- Pasting into D&D Beyond's rich-text boxes makes action names bold-italic automatically. Turn on `**Bold** names` if you want Markdown bold in the plain-text view, or click any block in the preview to copy just that action.
+- Everything stays in your browser's `localStorage`. Use Export (or the download icon next to a monster's name) to save a `.json` backup or share monsters and saved abilities, and Import to load them.
+
+</details>
 
 ## Developing
 
+Stat Forge is a static site in `src/` written in plain JavaScript with no build step.
+
 ```bash
-npm install
-npm start        # run the app
-npm test         # check the generated text against the Wyvern Rider example
-npm run dist     # build dist/StatForge.exe
+npx serve src    # preview locally in your browser
+npm test         # run the unit tests (requires Node)
 ```
 
-- All the statblock text comes from `src/format.js`.
-- `src/library.js` holds the pure helpers behind the UI: output hashes for the copied tracker, folder grouping, search ranking, milestone checkpoints and starter templates.
-- `src/ddb.js` holds the pure D&D Beyond markup checker/repairer and pasted-action parser.
-- The UI is `src/index.html`, `src/styles.css` and `src/app.js` (plain JavaScript, no framework). The fonts are self-hosted in `src/fonts/` under the SIL Open Font License (see the `OFL-*.txt` files there).
-- `PRODUCT.md` is the product brief.
-- `main.js` and `preload.js` are the Electron shell.
-
-The first `npm start` downloads Electron itself, because `npm install` no longer does. If it says Electron "failed to install correctly", delete `node_modules/electron`, run `npm install`, then run `npx install-electron --no`. If the download is blocked, unzip `%LOCALAPPDATA%\electron\Cache\…\electron-v*-win32-x64.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron.exe`.
+- `src/format.js`: statblock token and D&D Beyond markup generation.
+- `src/library.js`: copied-section hashing, folder grouping, search ranking, milestone checkpoints, and starter templates.
+- `src/ddb.js`: D&D Beyond markup checker/repairer and pasted-action parser.
+- `src/index.html`, `src/styles.css`, `src/app.js`: UI and self-hosted SIL OFL fonts (`src/fonts/`).
+- `PRODUCT.md`: product brief.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Not affiliated with Wizards of the Coast or D&D Beyond.
+MIT (see [LICENSE](LICENSE)). Not affiliated with Wizards of the Coast or D&D Beyond.

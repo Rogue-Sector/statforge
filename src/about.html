@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b111e">
+  <meta name="description" content="How Stat Forge started as a tool for one DM, why it moved to the web, how your data stays in your browser, and credits.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="About Stat Forge">
+  <meta property="og:description" content="How Stat Forge started as a tool for one DM, why it moved to the web, and how your data stays in your browser.">
+  <meta property="og:image" content="icons/icon-512.png">
+  <title>About · Stat Forge</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="icons/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="about-page">
+  <header class="topbar about-topbar">
+    <a class="wordmark wordmark-link" href="./">
+      <img class="wordmark-mark" src="icons/mark.svg" alt="" width="21" height="24">Stat Forge
+    </a>
+    <div class="topbar-right">
+      <a class="btn btn-primary btn-sm" href="./">Back to editor</a>
+      <a class="credit" href="https://roguesector.dev" target="_blank" rel="noopener">Made By Rogue</a>
+    </div>
+  </header>
+
+  <main class="about-main">
+    <header class="about-hero">
+      <img class="about-logo" src="icons/icon.svg" alt="" width="64" height="64">
+      <div>
+        <h1 class="about-title">About Stat Forge</h1>
+        <p class="about-lead">A small browser tool for turning 5e monster numbers into working D&amp;D Beyond and AboveVTT clickable dice.</p>
+      </div>
+    </header>
+
+    <nav class="about-toc" aria-label="On this page">
+      <a href="#story">How it started</a>
+      <a href="#why-web">Why a website</a>
+      <a href="#scope">What it does</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#open-source">Open source</a>
+      <a href="#credits">Credits</a>
+    </nav>
+
+    <section class="about-section" id="story">
+      <h2>How it started</h2>
+      <p>
+        Stat Forge started after I heard my DM complaining that most of his session prep went into writing monster statblocks instead of lore or story, and that he was typing out D&amp;D Beyond's <code>[rollable]</code> notation by hand.
+      </p>
+      <p>
+        I had never DM'd before and had zero idea that was how homebrew monsters worked on D&amp;D Beyond. I built a small Windows <code>.exe</code> for him and kept adjusting it based on his critiques until his monsters pasted cleanly and rolled on the first try.
+      </p>
+    </section>
+
+    <section class="about-section" id="why-web">
+      <h2>Why it became a website</h2>
+      <p>
+        He said the app was gamechanging for his prep, except there was no auto-updater. Whenever he found a bug or asked for a feature, I had to make the change, rebuild the <code>.exe</code>, and send him a new copy.
+      </p>
+      <p>
+        Then on the D&amp;D Beyond subreddits I saw other people having the same trouble writing rollable notations by hand, so I figured why not just make it a website. Now my DM gets fixes by refreshing a tab, and anyone else can open it next to D&amp;D Beyond without downloading anything.
+      </p>
+    </section>
+
+    <section class="about-section" id="scope">
+      <h2>What it does (and what it skips)</h2>
+      <p>
+        Stat Forge skips AC, Hit Points, ability scores, and CR calculators because D&amp;D Beyond already has form fields for those. It only handles the text boxes in the homebrew monster form.
+      </p>
+      <ul class="about-list">
+        <li>Separate tabs for Traits, Actions, Bonus Actions, Reactions, Legendary Actions, and Lair Actions, with a tracker that shows which boxes changed since you last copied them.</li>
+        <li>Both 2024 wording (<code>Melee Attack Roll:</code>, <code>[spells]</code>) and 2014 wording (<code>Melee Weapon Attack:</code> or <code>Melee Spell Attack:</code>, <code>[spell]</code>).</li>
+        <li>Hover over or Tab to any underlined roll in the preview to see the exact dice, roll type, damage type, average, and range D&amp;D Beyond will read.</li>
+        <li>Automatic saving in your browser, undo and redo, local recovery checkpoints, a reusable ability library, a pasted-action importer, and Check DDB for repairing broken markup you already wrote elsewhere.</li>
+      </ul>
+    </section>
+
+    <section class="about-section" id="privacy">
+      <h2>Privacy and your data</h2>
+      <div class="about-card">
+        <p>
+          Nothing leaves your browser. Stat Forge has no accounts, no database, no analytics, no cookies, and no ads, and it makes zero network requests after the page loads.
+        </p>
+        <p>
+          Your monsters, folders, saved abilities, and recovery checkpoints stay in your browser's <code>localStorage</code>. Clearing site data in your browser deletes them, so use Export whenever you want a <code>.json</code> backup or want to move your library to another device.
+        </p>
+      </div>
+    </section>
+
+    <section class="about-section" id="open-source">
+      <h2>Open source and feedback</h2>
+      <p>
+        Stat Forge is written in plain JavaScript with no build step and released under the MIT license on <a href="https://github.com/Rogue-Sector/statforge" target="_blank" rel="noopener">GitHub</a>.
+      </p>
+      <p>
+        If a 5e wording edge case or D&amp;D Beyond rollable tag breaks when you paste it, <a href="https://github.com/Rogue-Sector/statforge/issues" target="_blank" rel="noopener">open an issue on GitHub</a> with the statblock text so I can reproduce it.
+      </p>
+    </section>
+
+    <section class="about-section" id="credits">
+      <h2>Credits</h2>
+      <ul class="about-list">
+        <li>Built by <a href="https://roguesector.dev" target="_blank" rel="noopener">Rogue</a>.</li>
+        <li>Inspired and tested by my DM, whose critiques and homebrew monsters (including the Wyvern Rider example) shaped the editor.</li>
+        <li>Self-hosted fonts under the SIL Open Font License 1.1: Alegreya, Alegreya SC, Schibsted Grotesk, and JetBrains Mono.</li>
+      </ul>
+    </section>
+
+    <footer class="disclaimer about-foot">
+      <div class="disclaimer-links">
+        <a href="./">Open editor</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/Rogue-Sector/statforge" target="_blank" rel="noopener">GitHub</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://roguesector.dev" target="_blank" rel="noopener">Made By Rogue</a>
+      </div>
+      <p>Not affiliated with Wizards of the Coast or D&amp;D Beyond.</p>
+    </footer>
+  </main>
+</body>
+</html>
